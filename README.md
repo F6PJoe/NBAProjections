@@ -141,7 +141,7 @@ Settings live in `config.py` → `PARAMS`.
 
 - **Code:** this repo (public; keys are GitHub secrets, never in the code).
 - **Results:** private repo `F6PJoe/NBAProjections-data` (it holds other sites' numbers that can't be republished).
-- `projections.yml` fires at :10/:25/:40/:55 (last run ~5 min before :00/:30 tips); `cloud_run.py` decides if a run is due (hourly early in the day,
+- Triggers: cron-job.org calls workflow_dispatch (GitHub's scheduler is not used). `projections.yml` fires at :10/:25/:40/:55 (last run ~5 min before :00/:30 tips); `cloud_run.py` decides if a run is due (hourly early in the day,
   every 15 min in the 4 hours before the first tip, stops after the last tip) and trims raw inputs.
 - `grade.yml` grades last night every morning -> `output/<date>/grade_report.txt` in the data repo.
 - Locally, `.env` has `NBA_DATA_DIR` pointing at `store/` (a clone of the data repo); `git -C store pull` to see cloud results.

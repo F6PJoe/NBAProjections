@@ -4,15 +4,12 @@
 name: NBA projections
 
 on:
-  workflow_dispatch:            # also triggered by cron-job.org (GitHub's own schedule can lag)
+  workflow_dispatch:            # triggered by cron-job.org (GitHub's own scheduler is off: it lags and auto-disables)
     inputs:
       force:
         description: "Run now even if not due"
         type: boolean
         default: false
-  schedule:
-    - cron: "10,25,40,55 14-23 * * *"  # :10/:25/:40/:55 so the last run lands ~5 min before :00/:30 tips; 9 AM-7 PM ET winter
-    - cron: "10,25,40,55 0-4 * * *"    # evenings until ~midnight ET
 
 concurrency:
   group: nba-data               # one writer to the data repo at a time

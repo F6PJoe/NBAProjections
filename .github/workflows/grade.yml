@@ -3,13 +3,11 @@
 name: NBA grade last night
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:            # triggered daily by cron-job.org (~10 AM ET)
     inputs:
       date:
         description: "Night to grade (YYYY-MM-DD); blank = last night"
         required: false
-  schedule:
-    - cron: "30 14 * * *"       # 9:30 AM ET winter / 10:30 AM ET summer (box scores are in by then)
 
 concurrency:
   group: nba-data
