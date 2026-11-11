@@ -32,9 +32,12 @@ ET = ZoneInfo("America/New_York")
 STAT_MAP = {"points": "pts", "rebounds": "reb", "assists": "ast", "threePointersMade": "fg3m",
             "steals": "stl", "blocks": "blk", "turnovers": "tov"}
 SD_COEF = {**PARAMS["sd_coef"], "fg3m": 1.1, "tov": 1.0}
-REUSE_MIN = 180      # pull at most every 3 hours ...
-NEAR_TIP_MIN = 75    # ... plus one fresh pull in the last 75 minutes before the first tip
-# ~4 pulls x ~10 games = ~40 objects a night, ~1,200 a month (free plan: 2,500)
+FIRST_PULL_HOUR = 12  # books post most player props by midday; earlier pulls cost the same and return little
+REUSE_MIN = 180       # before the first tip: refresh every 3 hours (noon, 3 PM)
+NEAR_TIP_MIN = 75     # + one pull in the 75 minutes before each tip group ...
+GROUP_GAP_MIN = 120   # ... where games within 2 hours of the first tip of a group count as one group
+# normal 7 PM night: noon, 3 PM, ~5:55 PM (+ ~8:55 PM if there are 10 PM games) = ~3-4 pulls,
+# ~10 games each -> ~1,000 objects a month (free plan: 2,500)
 
 
 def _american_to_prob(o):
@@ -106,30 +109,32 @@ def tidy(events):
     return pd.DataFrame(rows)
 
 
-def _due(folder, date, now, first_tip):
-    files = sorted(folder.glob("props_[0-9]*.csv"))
-    if not files:
-        return True
-    if date < now.date():
+def _due(folder, date, now, tips):
+    if date != now.date():
         return False
-    hhmm = files[-1].stem[-4:]
-    last = dt.datetime.combine(date, dt.time(int(hhmm[:2]), int(hhmm[2:])), ET)
-    if (now - last).total_seconds() >= REUSE_MIN * 60:
-        return True
-    if first_tip is not None:
-        tip = pd.Timestamp(first_tip).tz_convert(ET).to_pydatetime()
-        window = tip - dt.timedelta(minutes=NEAR_TIP_MIN)
-        return window <= now < tip and last < window
-    return False
+    import live
+    files = sorted(folder.glob("props_[0-9]*.csv"))
+    last = None
+    if files:
+        hhmm = files[-1].stem[-4:]
+        last = pd.Timestamp(dt.datetime.combine(date, dt.time(int(hhmm[:2]), int(hhmm[2:])), ET))
+    now = pd.Timestamp(now)
+    if tips is None or not len(tips):
+        return now.hour >= FIRST_PULL_HOUR and (last is None or (now - last).total_seconds() >= REUSE_MIN * 60)
+    first = live.tip_groups(tips, GROUP_GAP_MIN)[0]
+    if (now.hour >= FIRST_PULL_HOUR and now < first
+            and (last is None or (now - last).total_seconds() >= REUSE_MIN * 60)):
+        return True                    # midday refreshes (an early tip still gets its near-tip pull below)
+    return live.pull_due_before_tip(tips, now, last, NEAR_TIP_MIN, GROUP_GAP_MIN)
 
 
-def pull(date=None, force=False, first_tip=None):
+def pull(date=None, force=False, tips=None):
     """Tonight's props (one row per player x stat), pulled only when due; saved under cache/live/<date>/."""
     now = dt.datetime.now(ET)
     date = date or now.date()
     folder = LIVE / f"{date:%Y-%m-%d}"
     folder.mkdir(parents=True, exist_ok=True)
-    if not force and not _due(folder, date, now, first_tip):
+    if not force and not _due(folder, date, now, tips):
         return saved(date)[0]
     events = fetch(date)
     stamp = f"{now:%H%M}"

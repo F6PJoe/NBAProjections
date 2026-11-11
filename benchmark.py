@@ -160,7 +160,11 @@ BC_TTL_MIN = 30   # the key allows 200 requests/day across all endpoints (shared
                   # else using it), so reuse a fetch for 30 minutes: at most ~96 calls/day here
 
 
-def bluecollar(date, site="DK"):
+BC_BEFORE_TIP_MIN = 20   # live runs: one pull per tip group, in the 20 minutes before it (after
+                         # NBA.com confirms starters, ~30 min out). Grading only uses these.
+
+
+def bluecollar(date, site="DK", tips=None):
     """BlueCollar slates -> name, team, proj. Auth per bluecollardfs.com/developers:
     'Authorization: ApiKey <key>'. Response: {"slates": [{"slate", "info": [players]}]}."""
     key = secret("BLUECOLLAR_API_KEY")
@@ -176,6 +180,12 @@ def bluecollar(date, site="DK"):
         hhmm = recent[-1].stem[-4:]
         saved_at = pd.Timestamp(f"{date:%Y-%m-%d} {hhmm[:2]}:{hhmm[2:]}", tz="America/New_York")
         age = (now - saved_at).total_seconds() / 60
+    if tips is not None:                      # live run: only right before each tip group
+        import live
+        last = now - pd.Timedelta(minutes=age) if age is not None else None
+        if not live.pull_due_before_tip(tips, now, last, BC_BEFORE_TIP_MIN):
+            return bluecollar_saved(date, site)[0]
+        recent = []
     if recent and (age < ttl or now.date() > date):
         text = recent[-1].read_text(encoding="utf-8")
     else:
@@ -229,7 +239,7 @@ def bluecollar_saved(date, site="DK", before=None):
 
 # ----------------------------------------------------------------- attach ----
 
-def attach(allp, matcher, date, season=None):
+def attach(allp, matcher, date, season=None, tips=None):
     """Add outside numbers as bench_<source>_<site> columns (benchmark only).
     Never fails the run: any problem just leaves that source's columns blank."""
     def by_name(df, col):
@@ -266,7 +276,7 @@ def attach(allp, matcher, date, season=None):
         if not secret("BLUECOLLAR_API_KEY"):
             continue
         try:
-            bc = bluecollar(date, site)
+            bc = bluecollar(date, site, tips)
             if not bc.empty:
                 allp[col] = allp["player_id"].map(by_name(bc, "proj"))
         except Exception as e:  # noqa: BLE001

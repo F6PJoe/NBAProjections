@@ -11,8 +11,8 @@ on:
         type: boolean
         default: false
   schedule:
-    - cron: "*/15 14-23 * * *"  # 9 AM - 7 PM ET (winter) / 10 AM - 8 PM ET (summer)
-    - cron: "*/15 0-4 * * *"    # evenings until ~midnight ET
+    - cron: "10,25,40,55 14-23 * * *"  # :10/:25/:40/:55 so the last run lands ~5 min before :00/:30 tips; 9 AM-7 PM ET winter
+    - cron: "10,25,40,55 0-4 * * *"    # evenings until ~midnight ET
 
 concurrency:
   group: nba-data               # one writer to the data repo at a time

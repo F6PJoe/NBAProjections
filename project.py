@@ -223,10 +223,10 @@ def main(date, params=PARAMS, quiet=False):
             "status_source", "restriction_note", "override", "override_note", "games",
             "missed_in_row", "tip"]
     allp = allp.reindex(columns=keep).sort_values("fp_DK", ascending=False)
-    allp = benchmark.attach(allp, matcher, date, season)   # outside numbers, comparison only
+    allp = benchmark.attach(allp, matcher, date, season, tips=games["tip"])   # comparison only
     try:                                                    # prop lines: saved for grading only (TEST)
         import props
-        pr = props.pull(date, first_tip=games["tip"].min())  # pulls only when due (free plan quota)
+        pr = props.pull(date, tips=games["tip"])            # pulls only when due (free plan quota)
         say(f"props (test only): {pr['sgo_player'].nunique() if len(pr) else 0} players")
     except Exception as e:                                  # never let the test break a run
         say(f"props (test only): skipped - {e}")

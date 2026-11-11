@@ -69,6 +69,27 @@ def _remember_lines(date, g):
     pd.concat([keep, new]).to_csv(f, index=False)
 
 
+def tip_groups(tips, gap_min=60):
+    """Start times of tonight's tip groups (ET). Games tipping within gap_min of a group's
+    first tip belong to that group: 7:00 / 7:30 / 8:00 = one group, 10:00 / 10:30 = another."""
+    starts = []
+    for t in sorted(pd.to_datetime(pd.Series(list(tips)).dropna(), utc=True).dt.tz_convert(ET)):
+        if not starts or (t - starts[-1]).total_seconds() > gap_min * 60:
+            starts.append(t)
+    return starts
+
+
+def pull_due_before_tip(tips, now, last_pull, window_min, gap_min=60):
+    """True when the next tip group starts within window_min and nothing was pulled
+    since that window opened (so one pull per tip group)."""
+    for start in tip_groups(tips, gap_min):
+        if start <= now:
+            continue
+        opens = start - pd.Timedelta(minutes=window_min)
+        return now >= opens and (last_pull is None or last_pull < opens)
+    return False
+
+
 def saved_games(date):
     """Games + lines from the last scoreboard saved that day (for re-grading past nights)."""
     files = sorted(_folder(date).glob("espn_scoreboard_*.json"))

@@ -141,8 +141,11 @@ Settings live in `config.py` → `PARAMS`.
 
 - **Code:** this repo (public; keys are GitHub secrets, never in the code).
 - **Results:** private repo `F6PJoe/NBAProjections-data` (it holds other sites' numbers that can't be republished).
-- `projections.yml` fires every 15 min; `cloud_run.py` decides if a run is due (hourly early in the day,
+- `projections.yml` fires at :10/:25/:40/:55 (last run ~5 min before :00/:30 tips); `cloud_run.py` decides if a run is due (hourly early in the day,
   every 15 min in the 4 hours before the first tip, stops after the last tip) and trims raw inputs.
 - `grade.yml` grades last night every morning -> `output/<date>/grade_report.txt` in the data repo.
 - Locally, `.env` has `NBA_DATA_DIR` pointing at `store/` (a clone of the data repo); `git -C store pull` to see cloud results.
 - Secrets: `FANTASYPROS_API_KEY`, `BLUECOLLAR_API_KEY`, `SPORTSGAMEODDS_API_KEY`, `DATA_DEPLOY_KEY` (write deploy key on the data repo).
+- Outside pulls follow tip groups (games within an hour of each other; props use 2 hours):
+  BlueCollar once in the 20 min before each group (~4-6 requests/day); props from noon every 3 h
+  until the first tip, plus once in the 75 min before each group (~3-4 pulls, ~1,000 objects/month).
