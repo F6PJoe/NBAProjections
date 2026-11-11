@@ -1,0 +1,45 @@
+start: DK MAE 7.1067  (proj 20+ 8.3492)  min MAE 4.9865
+r0 min_half_life=4.0: 7.1198 (20+ 8.3340, min 5.0022) 20s
+r0 min_half_life=9.0: 7.1142 (20+ 8.3554, min 5.0041) 20s
+r0 min_half_life=13.0: 7.1283 (20+ 8.3618, min 5.0313) 20s
+r0 min_prior_games=0.5: 7.0109 (20+ 8.3264, min 4.8435) 20s  <-- better
+r0 min_prior_games=4.0: 7.2464 (20+ 8.3903, min 5.2079) 20s
+r0 starter_delta=4.0: 7.0209 (20+ 8.3034, min 4.8607) 20s
+r0 starter_delta=10.0: 7.0376 (20+ 8.3944, min 4.8914) 19s
+r0 max_minutes=37.0: 6.9994 (20+ 8.3119, min 4.7992) 20s  <-- better
+r0 max_minutes=38.5: 7.0051 (20+ 8.3167, min 4.8235) 21s
+r0 fill_cap_add=5.0: 7.0034 (20+ 8.3159, min 4.8047) 19s
+r0 fill_cap_add=12.0: 6.9982 (20+ 8.3143, min 4.7976) 20s
+r0 fill_power=0.5: 6.9828 (20+ 8.2668, min 4.7636) 19s  <-- better
+r0 fill_power=1.5: 7.0147 (20+ 8.3359, min 4.8303) 20s
+r0 fill_power=2.0: 7.0268 (20+ 8.3551, min 4.8556) 19s
+r0 pos_tau=0.6: 6.9918 (20+ 8.2833, min 4.7741) 20s
+r0 pos_tau=3.0: 6.9817 (20+ 8.2654, min 4.7650) 19s
+r0 excess_starter_w=0.25: 6.9650 (20+ 8.2690, min 4.7577) 19s  <-- better
+r0 excess_starter_w=1.0: 7.0199 (20+ 8.2797, min 4.7995) 20s
+r0 high_min_shrink=0.2: 6.9746 (20+ 8.2790, min 4.7567) 20s
+r0 high_min_shrink=0.4: 6.9878 (20+ 8.2903, min 4.7611) 20s
+r0 return_factor=0.75: 6.9701 (20+ 8.2704, min 4.7583) 21s
+r0 return_factor=0.95: 6.9651 (20+ 8.2759, min 4.7633) 20s
+r0 return_factor=1.0: 6.9670 (20+ 8.2765, min 4.7682) 20s
+r0 blowout_w=0.3: 6.9584 (20+ 8.2787, min 4.7604) 23s  <-- better
+r0 blowout_w=1.0: 6.9886 (20+ 8.2626, min 4.7680) 21s
+r0 min_other_team_w=0.3: 6.9543 (20+ 8.2798, min 4.7538) 20s  <-- better
+r0 min_other_team_w=1.0: 6.9626 (20+ 8.2799, min 4.7676) 21s
+r0 rate_half_life=12.0: 6.9822 (20+ 8.3171, min 4.7538) 19s
+r0 rate_half_life=45.0: 6.9503 (20+ 8.2780, min 4.7538) 20s  <-- better
+r0 rate_last_season_w=0.3: 6.9521 (20+ 8.2750, min 4.7538) 20s
+r0 rate_last_season_w=1.0: 6.9549 (20+ 8.2906, min 4.7538) 20s
+r0 pace_alpha=0.0: 6.9456 (20+ 8.2708, min 4.7538) 19s  <-- better
+r0 pace_alpha=0.5: 6.9473 (20+ 8.2730, min 4.7538) 19s
+r0 pace_alpha=1.2: 6.9566 (20+ 8.2889, min 4.7538) 19s
+r0 team_norm_scale=0.0: 6.9666 (20+ 8.2959, min 4.7538) 19s
+r0 team_norm_scale=0.5: 6.9526 (20+ 8.2768, min 4.7538) 19s
+r0 team_norm_scale=1.5: 6.9466 (20+ 8.2804, min 4.7538) 19s
+
+BEST: {'min_half_life': 6.0, 'min_prior_games': 0.5, 'starter_delta': 7.0, 'max_minutes': 37.0, 'fill_cap_add': 8.0, 'fill_power': 0.5, 'pos_tau': 1.25, 'excess_starter_w': 0.25, 'high_min_shrink': 0.0, 'return_factor': 0.85, 'blowout_w': 0.3, 'min_other_team_w': 0.3, 'rate_half_life': 45.0, 'rate_last_season_w': 0.6, 'pace_alpha': 0.0} team_norm_scale 1.0
+
+Check seasons (default -> tuned):
+  2026: DK MAE 7.1067 -> 6.9456 | proj20+ 8.3492 -> 8.2708 | min 4.9865 -> 4.7538
+  2025: DK MAE 6.9055 -> 6.7903 | proj20+ 8.3664 -> 8.3227 | min 4.8019 -> 4.5818
+  2027: DK MAE 7.1119 -> 6.7845 | proj20+ 8.6206 -> 8.5498 | min 5.1109 -> 4.7127

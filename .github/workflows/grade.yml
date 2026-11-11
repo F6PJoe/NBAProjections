@@ -1,0 +1,70 @@
+# Every morning: score last night's projections (as run, and as if injuries/starters were known)
+# against the box scores and the other sites. Report: store/output/<date>/grade_report.txt
+name: NBA grade last night
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Night to grade (YYYY-MM-DD); blank = last night"
+        required: false
+  schedule:
+    - cron: "30 14 * * *"       # 9:30 AM ET winter / 10:30 AM ET summer (box scores are in by then)
+
+concurrency:
+  group: nba-data
+  cancel-in-progress: false
+
+jobs:
+  grade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NBA_DATA_DIR: ${{ github.workspace }}/store
+      FANTASYPROS_API_KEY: ${{ secrets.FANTASYPROS_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: F6PJoe/NBAProjections-data
+          ssh-key: ${{ secrets.DATA_DEPLOY_KEY }}
+          path: store
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -q -r requirements.txt
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            store/cache/sdv
+            store/cache/dff
+            store/cache/espn_box
+          key: nba-dl-${{ github.run_id }}
+          restore-keys: nba-dl-
+      - name: Grade
+        run: |
+          D="${{ inputs.date }}"
+          [ -z "$D" ] && D=$(TZ=America/New_York date -d yesterday +%F)
+          if [ ! -d "store/output/$D" ]; then echo "no projections were run on $D"; exit 0; fi
+          python grade.py --date "$D" | tee "store/output/$D/grade_report.txt"
+      - name: Save to the data repo
+        run: |
+          cd store
+          git config user.name "nba-projections-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
+          git commit -q -m "grade $(TZ=America/New_York date -d yesterday +%F)"
+          for i in 1 2 3; do git push -q && exit 0; git pull -q --rebase; done
+          exit 1
+      - name: Save downloads
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            store/cache/sdv
+            store/cache/dff
+            store/cache/espn_box
+          key: nba-dl-${{ hashFiles('store/cache/sdv/**', 'store/cache/dff/**', 'store/cache/espn_box/**') }}

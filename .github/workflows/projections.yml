@@ -1,0 +1,73 @@
+# Projections every 15 minutes on game days. cloud_run.py decides whether a run is due
+# (hourly early in the day, every 15 min in the last 4 hours, stops once every game has tipped).
+# Results go to the PRIVATE data repo (they include outside sites' numbers we can't republish).
+name: NBA projections
+
+on:
+  workflow_dispatch:            # also triggered by cron-job.org (GitHub's own schedule can lag)
+    inputs:
+      force:
+        description: "Run now even if not due"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "*/15 14-23 * * *"  # 9 AM - 7 PM ET (winter) / 10 AM - 8 PM ET (summer)
+    - cron: "*/15 0-4 * * *"    # evenings until ~midnight ET
+
+concurrency:
+  group: nba-data               # one writer to the data repo at a time
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NBA_DATA_DIR: ${{ github.workspace }}/store
+      BC_TTL_MIN: "60"          # BlueCollar key: 200 requests/day shared with the NBADFS job
+      FANTASYPROS_API_KEY: ${{ secrets.FANTASYPROS_API_KEY }}
+      BLUECOLLAR_API_KEY: ${{ secrets.BLUECOLLAR_API_KEY }}
+      SPORTSGAMEODDS_API_KEY: ${{ secrets.SPORTSGAMEODDS_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: F6PJoe/NBAProjections-data
+          ssh-key: ${{ secrets.DATA_DEPLOY_KEY }}
+          path: store
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -q -r requirements.txt
+      - name: Restore downloads (box score history, DFF pages)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            store/cache/sdv
+            store/cache/dff
+            store/cache/espn_box
+          key: nba-dl-${{ github.run_id }}
+          restore-keys: nba-dl-
+      - name: Run if due
+        run: python cloud_run.py ${{ inputs.force && '--force' || '' }}
+      - name: Save results to the data repo
+        run: |
+          cd store
+          git config user.name "nba-projections-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
+          git commit -q -m "run $(TZ=America/New_York date '+%Y-%m-%d %H:%M ET')"
+          for i in 1 2 3; do git push -q && exit 0; git pull -q --rebase; done
+          exit 1
+      - name: Save downloads
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            store/cache/sdv
+            store/cache/dff
+            store/cache/espn_box
+          key: nba-dl-${{ hashFiles('store/cache/sdv/**', 'store/cache/dff/**', 'store/cache/espn_box/**') }}

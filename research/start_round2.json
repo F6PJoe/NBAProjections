@@ -1,0 +1,4 @@
+{"min_half_life": 6.0, "min_prior_games": 0.5, "starter_delta": 7.0, "max_minutes": 37.0, "fill_cap_add": 8.0,
+ "fill_power": 0.5, "pos_tau": 1.25, "excess_starter_w": 0.25, "high_min_shrink": 0.0, "return_factor": 0.85,
+ "blowout_w": 0.3, "min_other_team_w": 0.3, "rate_half_life": 45.0, "rate_last_season_w": 0.6,
+ "pace_alpha": 0.5, "role_blend_k": 3.0}

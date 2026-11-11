@@ -1,0 +1,29 @@
+start: DK MAE 6.9142  (proj 20+ 8.2603)  min MAE 4.7154
+r0 min_prior_games=0.0: 6.9174 (20+ 8.2694, min 4.7238) 17s
+r0 min_prior_games=0.25: 6.9144 (20+ 8.2644, min 4.7171) 17s
+r0 min_prior_games=1.0: 6.9169 (20+ 8.2519, min 4.7167) 17s
+r0 role_blend_k=0.0: 6.9440 (20+ 8.2678, min 4.7538) 18s
+r0 role_blend_k=1.5: 6.9172 (20+ 8.2724, min 4.7198) 20s
+r0 role_blend_k=6.0: 6.9148 (20+ 8.2505, min 4.7160) 19s
+r0 starter_delta=4.0: 6.9121 (20+ 8.2511, min 4.7179) 20s  <-- better
+r0 starter_delta=5.5: 6.9115 (20+ 8.2485, min 4.7140) 21s
+r0 max_minutes=36.0: 6.9095 (20+ 8.2436, min 4.7045) 21s  <-- better
+r0 max_minutes=38.0: 6.9149 (20+ 8.2548, min 4.7318) 24s
+r0 fill_power=0.25: 6.9043 (20+ 8.2254, min 4.6881) 29s  <-- better
+r0 fill_power=0.75: 6.9177 (20+ 8.2652, min 4.7234) 23s
+r0 excess_starter_w=0.1: 6.9025 (20+ 8.2408, min 4.7070) 24s
+r0 excess_starter_w=0.4: 6.9123 (20+ 8.2253, min 4.6870) 29s
+r0 blowout_w=0.15: 6.9012 (20+ 8.2290, min 4.6960) 25s  <-- better
+r0 blowout_w=0.5: 6.9124 (20+ 8.2206, min 4.6859) 25s
+r0 min_half_life=5.0: 6.8879 (20+ 8.2236, min 4.6740) 18s  <-- better
+r0 min_half_life=8.0: 6.9241 (20+ 8.2473, min 4.7338) 18s
+r0 high_min_shrink=0.1: 6.8920 (20+ 8.2236, min 4.6700) 18s
+r0 high_min_shrink=0.2: 6.8973 (20+ 8.2310, min 4.6687) 18s
+
+BEST: {'min_prior_games': 0.5, 'role_blend_k': 3.0, 'starter_delta': 4.0, 'max_minutes': 36.0, 'fill_power': 0.25, 'excess_starter_w': 0.25, 'blowout_w': 0.15, 'min_half_life': 5.0, 'high_min_shrink': 0.0} team_norm_scale 1.0
+saved C:\Users\jbond\OneDrive\Documents\NBAData\nba_dfs_projections\research\best_params.json
+
+Check seasons (start -> tuned):
+  2026: DK MAE 6.9142 -> 6.8879 | proj20+ 8.2603 -> 8.2236 | min 4.7154 -> 4.6740
+  2025: DK MAE 6.7593 -> 6.7469 | proj20+ 8.3161 -> 8.3038 | min 4.5495 -> 4.5080
+  2027: DK MAE 6.7104 -> 6.7117 | proj20+ 8.5714 -> 8.5385 | min 4.6500 -> 4.6466

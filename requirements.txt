@@ -1,0 +1,7 @@
+pandas
+numpy
+pyarrow
+requests
+pdfplumber
+scipy
+python-dotenv
