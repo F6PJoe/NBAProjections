@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -q -r requirements.txt
+      - run: pip install -q -r requirements.txt && python -c "import pandas, numpy; print(pandas.__version__, numpy.__version__)"
       - uses: actions/cache/restore@v4
         with:
           path: |
@@ -44,6 +44,7 @@ jobs:
           restore-keys: nba-dl-
       - name: Grade
         run: |
+          set -o pipefail
           D="${{ inputs.date }}"
           [ -z "$D" ] && D=$(TZ=America/New_York date -d yesterday +%F)
           if [ ! -d "store/output/$D" ]; then echo "no projections were run on $D"; exit 0; fi

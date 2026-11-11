@@ -39,7 +39,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -q -r requirements.txt
+      - run: pip install -q -r requirements.txt && python -c "import pandas, numpy; print(pandas.__version__, numpy.__version__)"
       - name: Restore downloads (box score history, DFF pages)
         uses: actions/cache/restore@v4
         with:
