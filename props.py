@@ -61,7 +61,8 @@ def fetch(date):
         raise SystemExit("SPORTSGAMEODDS_API_KEY missing from .env")
     start = dt.datetime.combine(date, dt.time(6), ET)          # 6 AM ET .. 6 AM ET next day
     params = {"leagueID": "NBA", "oddsAvailable": "true", "limit": 50,
-              "startsAfter": start.astimezone(dt.timezone.utc).isoformat(),
+              # games already under way are skipped: their lines are live in-game lines (and cost objects)
+              "startsAfter": max(start, dt.datetime.now(ET)).astimezone(dt.timezone.utc).isoformat(),
               "startsBefore": (start + dt.timedelta(days=1)).astimezone(dt.timezone.utc).isoformat()}
     events, cursor = [], None
     for _ in range(5):
@@ -84,11 +85,15 @@ def fetch(date):
 def tidy(events):
     rows = []
     for ev in events:
+        st = ev.get("status", {})
+        if st.get("started") or st.get("live"):        # in-game lines already know the score - never use
+            continue
         teams = {side: team_code(ev["teams"][side]["names"]["short"]) for side in ("home", "away")}
         by_id = {ev["teams"][s]["teamID"]: t for s, t in teams.items()}
         players = ev.get("players", {})
         for oid, o in ev.get("odds", {}).items():
-            if o.get("betTypeID") != "ou" or o.get("sideID") != "over" or o.get("periodID") != "game":
+            if (o.get("betTypeID") != "ou" or o.get("sideID") != "over" or o.get("periodID") != "game"
+                    or o.get("started")):
                 continue
             stat = STAT_MAP.get(o.get("statID"))
             pid = o.get("playerID")
@@ -153,7 +158,10 @@ def saved(date, before=None):
         files = [f for f in files if f.stem[-4:] < before] or files[:1]
     if not files:
         return pd.DataFrame(), None
-    df = pd.concat([pd.read_csv(f).assign(pulled=f.stem[-4:]) for f in files])
+    df = pd.concat([pd.read_csv(f, dtype={"pulled": str}).assign(pulled=f.stem[-4:]) for f in files])
+    # each player's line from the last pull BEFORE his own game tipped
+    tip_hhmm = pd.to_datetime(df["tip"], utc=True).dt.tz_convert(ET).dt.strftime("%H%M")
+    df = df[df["pulled"] < tip_hhmm]
     df = df.sort_values("pulled").drop_duplicates(["sgo_player", "stat"], keep="last")
     return df, files[-1].stem[-4:]
 

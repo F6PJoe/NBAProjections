@@ -209,7 +209,7 @@ def bluecollar(date, site="DK", tips=None):
     return df.drop_duplicates(["name", "team"]) if not df.empty else df
 
 
-def bluecollar_saved(date, site="DK", before=None):
+def bluecollar_saved(date, site="DK", before=None, tips_by_team=None):
     """BlueCollar pulls saved on that date, combined: the latest number per player (games leave
     their slates once they tip, so the last pull alone misses early games). Optionally only
     pulls before HHMM."""
@@ -230,7 +230,11 @@ def bluecollar_saved(date, site="DK", before=None):
                 info = info.get("players")
             rows += _bc_rows(info)
         if rows:
-            frames.append(pd.DataFrame(rows).drop_duplicates(["name", "team"]))
+            fr = pd.DataFrame(rows).drop_duplicates(["name", "team"])
+            if tips_by_team:                       # only teams whose game hadn't tipped at pull time
+                stamp = f.stem[-4:]
+                fr = fr[[stamp < tips_by_team.get(t, "9999") for t in fr["team"]]]
+            frames.append(fr)
     if not frames:
         return pd.DataFrame(), files[-1].stem[-4:]
     df = pd.concat(frames).drop_duplicates(["name", "team"], keep="last")

@@ -121,11 +121,15 @@ def regrade(date, use_starters=True):
         ids = [mt.match(n, t) for n, t in zip(df["name"], df["team"])]
         return {i: v for i, v in zip(ids, df[col]) if i is not None}
 
+    sg = live.saved_games(date)
+    tips_by_team = {}
+    for g in sg.itertuples():
+        tips_by_team[g.home] = tips_by_team[g.away] = f"{g.tip:%H%M}"
     notes = {}
     for site in ("DK", "FD"):
         d = benchmark.dff(date, site)
         r[f"bench_DFF_{site}"] = r["player_id"].map(by_name(d, "ppg_proj")) if not d.empty else np.nan
-        bc, stamp = benchmark.bluecollar_saved(date, site)
+        bc, stamp = benchmark.bluecollar_saved(date, site, tips_by_team=tips_by_team)
         r[f"bench_BC_{site}"] = r["player_id"].map(by_name(bc, "proj")) if not bc.empty else np.nan
         if stamp:
             notes["BC"] = f"BlueCollar snapshot saved {stamp[:2]}:{stamp[2:]} ET"
