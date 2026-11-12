@@ -75,8 +75,8 @@ def main(date, params=PARAMS, quiet=False):
     season = CURRENT_SEASON
     say(f"NBA projections for {date} (season {season - 1}-{str(season)[2:]})")
     say("refreshing history ...")
-    sdv.refresh([season - 1, season])
-    pg = load_player_games([season - 1, season])
+    sdv.refresh([season - 2, season - 1, season])
+    pg = load_player_games([season - 2, season - 1, season])   # 3 seasons: players who missed all of last one
     rosters = build_rosters(pg, season)
     pos = {}
     for yr in (season - 1, season):
@@ -230,6 +230,11 @@ def main(date, params=PARAMS, quiet=False):
         say(f"props (test only): {pr['sgo_player'].nunique() if len(pr) else 0} players")
     except Exception as e:                                  # never let the test break a run
         say(f"props (test only): skipped - {e}")
+    try:                                                    # FantasyPros news: saved for research only (TEST)
+        import news
+        say(f"news (test only): {news.pull()} new items")
+    except Exception as e:
+        say(f"news (test only): skipped - {e}")
     allp.to_csv(folder / f"projections_all_{stamp:%H%M}.csv", index=False)
 
     unmatched_sites = {}

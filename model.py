@@ -112,6 +112,11 @@ def minutes_baseline(h, team, season, P):
     last = avail & (h["season"] == season - 1)
     if last.sum() >= 5:
         prior = float(h["min"][last][-40:].mean())
+    elif P.get("older_seasons", 0) > 0:          # missed (nearly) all of last season: use the last full one
+        older = avail & (h["season"] < season - 1) & (h["season"] >= season - 1 - P["older_seasons"])
+        if older.sum() >= 5:
+            prior = float(h["min"][older][-40:].mean()) * P.get("older_min_factor", 1.0)
+            last = older
     if len(idx) == 0:
         if prior is None:
             return None, 0.0, 0, {}
@@ -132,6 +137,11 @@ def minutes_baseline(h, team, season, P):
         recent = float(m[:jk].mean())
         if recent - base >= P.get("role_jump_min", 6.0):
             base += jw * (recent - base)
+    dw = P.get("role_drop_w", 0.0)
+    if dw > 0 and len(idx) >= jk + 2:          # clear recent drop (e.g. out of the rotation) (off by default)
+        recent = float(m[:jk].mean())
+        if base - recent >= P.get("role_drop_min", 6.0):
+            base -= dw * (base - recent)
     st = h["starter"][idx]
     start_rate = float((w * st).sum() / w.sum())
     role = {}
@@ -242,12 +252,14 @@ def per_minute_rates(h, season, pos, pos_means, P):
     K = {k: v * P.get("rate_prior_scale", 1.0) for k, v in P["rate_prior_minutes"].items()}
     if h is None:
         return {s: mu[s] for s in STATS}, 0.0
-    played = (h["status"] == "played") & (h["season"] >= season - 1) & (h["min"] > 0)
+    back = 1 + int(P.get("older_seasons", 0))   # seasons before last one (players who missed all of last season)
+    played = (h["status"] == "played") & (h["season"] >= season - back) & (h["min"] > 0)
     idx = np.flatnonzero(played)[::-1][: P["rate_window"]]
     if len(idx) == 0:
         return {s: mu[s] for s in STATS}, 0.0
     w = 0.5 ** (np.arange(len(idx)) / P["rate_half_life"])
-    w = w * np.where(h["season"][idx] == season, 1.0, P["rate_last_season_w"])
+    w = w * np.where(h["season"][idx] == season, 1.0,
+                     np.where(h["season"][idx] == season - 1, P["rate_last_season_w"], P.get("rate_older_w", 0.4)))
     mins = h["min"][idx]
     wm = float((w * mins).sum())
     out = {}

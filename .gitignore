@@ -6,3 +6,8 @@ __pycache__/
 *.pyc
 data/fanduel/*
 !data/fanduel/README.txt
+
+# outputs holding outside sites' numbers go in store/research (private), never in this public repo
+research/*dff*.csv
+research/*bc*.csv
+research/depth_test.csv

@@ -92,6 +92,8 @@ PARAMS = {
     "rate_half_life": 45.0,      # games
     "rate_last_season_w": 0.6,   # weight on last-season games relative to this season
     "rate_window": 82,
+    "older_seasons": 1,          # 2026-11-12: missed all of last season -> use the season before for minutes + rates
+    "rate_older_w": 0.4,         #   (Haliburton/Lillard/Kyrie were ~20 min "unknowns" on opening night; 2026-27 -0.018, 24+ -0.025)
     "rate_prior_scale": 0.25,    # multiplies rate_prior_minutes (how hard rates are pulled to the position average)
     "rate_prior_minutes": {"pts": 150, "fg3m": 250, "reb": 200, "ast": 200,
                            "stl": 500, "blk": 400, "tov": 300},

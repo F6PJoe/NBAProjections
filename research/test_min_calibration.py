@@ -76,9 +76,36 @@ def combos():
     ]
 
 
+def drops():
+    def v(label, **kw):
+        p = copy.deepcopy(PARAMS); p.update(kw); return (p, label)
+    return [
+        v("current"),
+        v("drop last2 -6 x0.25", role_drop_min=6.0, role_drop_w=0.25),
+        v("drop last2 -6 x0.5", role_drop_min=6.0, role_drop_w=0.5),
+        v("drop last2 -8 x0.5", role_drop_min=8.0, role_drop_w=0.5),
+        v("drop last2 -10 x0.5", role_drop_min=10.0, role_drop_w=0.5),
+        v("drop last2 -6 x0.75", role_drop_min=6.0, role_drop_w=0.75),
+    ]
+
+
+def older():
+    def v(label, **kw):
+        p = copy.deepcopy(PARAMS); p.update(kw); return (p, label)
+    return [
+        v("current"),
+        v("older seasons (w .4)", older_seasons=1),
+        v("older seasons (w .2)", older_seasons=1, rate_older_w=0.2),
+        v("older seasons (w .6)", older_seasons=1, rate_older_w=0.6),
+        v("older seasons min x0.9", older_seasons=1, older_min_factor=0.9),
+        v("older 2 seasons back", older_seasons=2),
+    ]
+
+
 if __name__ == "__main__":
-    if "--grid" in sys.argv or "--combos" in sys.argv:
-        todo = combos() if "--combos" in sys.argv else variants()
+    if any(f in sys.argv for f in ("--grid", "--combos", "--older", "--drops")):
+        todo = (combos() if "--combos" in sys.argv else older() if "--older" in sys.argv
+                else drops() if "--drops" in sys.argv else variants())
         with ProcessPoolExecutor(max_workers=8, initializer=_init) as ex:
             rows = list(ex.map(score, todo))
         df = pd.DataFrame(rows).set_index("label")
@@ -88,7 +115,9 @@ if __name__ == "__main__":
             df[f"d{s}_24+"] = df[f"{s}_24+"] - base[f"{s}_24+"]
         pd.set_option("display.width", 250)
         print(df.round(3).to_string())
-        name = "test_min_calibration_combos.csv" if "--combos" in sys.argv else "test_min_calibration_results.csv"
+        name = ("test_min_calibration_combos.csv" if "--combos" in sys.argv else
+                "test_older_seasons.csv" if "--older" in sys.argv else
+                "test_role_drop.csv" if "--drops" in sys.argv else "test_min_calibration_results.csv")
         df.round(4).to_csv(Path(__file__).with_name(name))
     else:
         _init()
