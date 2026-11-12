@@ -167,6 +167,40 @@ def print_regrade(date, r, notes, n_lines, n_games):
     print_props_test(r)
 
 
+def log_props_test(date, r):
+    """Keep every player's projection, props-implied numbers and result in output/props_test_log.csv
+    (one row per player-night, re-written if a night is re-graded) and print season-to-date totals."""
+    import props
+    if "prop_pts" not in r.columns:
+        return
+    b = r.dropna(subset=["prop_pts"]).copy()
+    if b.empty:
+        return
+    b["night"] = f"{date:%Y-%m-%d}"
+    for w in (0.25, 0.5, 0.75, 1.0):
+        b[f"fp_DK_props{int(w * 100)}"] = props.blend_dk(b, w)
+    keep = ["night", "player_id", "name", "team", "proj_min", "a_min", "fp_DK", "a_fp_DK",
+            "fp_DK_props25", "fp_DK_props50", "fp_DK_props75", "fp_DK_props100"]
+    keep += [c for s in ("pts", "reb", "ast", "fg3m") for c in (s, f"prop_{s}", f"a_{s}") if c in b.columns]
+    f = OUTPUT / "props_test_log.csv"
+    log = pd.read_csv(f) if f.exists() else pd.DataFrame()
+    if len(log):
+        log = log[log["night"] != b["night"].iloc[0]]
+    log = pd.concat([log, b[keep]]).sort_values(["night", "player_id"])
+    log.to_csv(f, index=False)
+    big = log["a_min"] >= 24
+    print()
+    print(f"  PROPS TEST SEASON TO DATE: {log['night'].nunique()} nights, {len(log)} players "
+          f"({int(big.sum())} played 24+)")
+    for lab, col in (("ours", "fp_DK"), ("25% toward props", "fp_DK_props25"), ("50% toward props", "fp_DK_props50"),
+                     ("75% toward props", "fp_DK_props75"), ("100% props", "fp_DK_props100")):
+        e = (log[col] - log["a_fp_DK"]).abs()
+        nights_better = (log.assign(e=e, e0=(log["fp_DK"] - log["a_fp_DK"]).abs())
+                         .groupby("night").apply(lambda g: g["e"].mean() < g["e0"].mean(), include_groups=False).sum())
+        extra = "" if col == "fp_DK" else f" | beat ours on {nights_better}/{log['night'].nunique()} nights"
+        print(f"    {lab:18s} all {e.mean():.2f} | 24+ {e[big].mean():.2f}{extra}")
+
+
 def print_props_test(r):
     """TEST: would moving our pts/reb/ast/3s toward the prop-implied averages have helped?"""
     import props
@@ -209,6 +243,7 @@ def main(dates=None):
             out = regrade(d)
             if out:
                 print_regrade(d, *out)
+                log_props_test(d, out[0])
         else:
             print(f"{d}: no box scores yet")
     if rows:
