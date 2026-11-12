@@ -72,7 +72,11 @@ PARAMS = {
     "spread_min_k": 0.0,         # starter minutes cut per point of spread beyond spread_min_start
     "spread_min_start": 6.0,
     "team_minutes": 241.5,       # 240 + expected overtime
-    "max_minutes": 36.0,
+    "max_minutes": 34.0,         # 2026-11-12: was 36; 33+ projections ran 1.7 min high (3 seasons: better all, 24+ -0.04)
+    "starter_min_floor": 20.0,   # 2026-11-12: confirmed starter projects >= 20 min (deep-bench spot starters ran far low)
+    "role_jump_k": 2,            # 2026-11-12: last 2 games >= role_jump_min above his baseline = role change ...
+    "role_jump_min": 6.0,
+    "role_jump_w": 0.5,          # ... move halfway to those games (research/test_min_calibration.py)
     "fill_cap_mult": 1.5,        # a player can absorb freed minutes up to max(r * mult, r + add)
     "fill_cap_add": 8.0,
     "excess_starter_w": 0.25,     # when minutes must come back, starters give up less

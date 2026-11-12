@@ -127,6 +127,11 @@ def minutes_baseline(h, team, season, P):
     if prior is not None:
         kp = P["min_prior_games"]
         base = float(((w * m).sum() + kp * prior) / (w.sum() + kp))
+    jk, jw = int(P.get("role_jump_k", 2)), P.get("role_jump_w", 0.0)
+    if jw > 0 and len(idx) >= jk + 2:          # clear recent jump in minutes = role change (off by default)
+        recent = float(m[:jk].mean())
+        if recent - base >= P.get("role_jump_min", 6.0):
+            base += jw * (recent - base)
     st = h["starter"][idx]
     start_rate = float((w * st).sum() / w.sum())
     role = {}
@@ -418,6 +423,8 @@ def project_team(hist, team, opp, is_home, day, season, roster, out_ids, pos_mea
                 base = wr * mean_r + (1 - wr) * shifted
             else:
                 base = shifted
+        if st and P.get("starter_min_floor", 0) > 0:     # a confirmed starter rarely plays less (off by default)
+            base = max(base, P["starter_min_floor"])
         missed = games_missed_in_row(h, team_hist)
         if missed >= P["return_games"] and h is not None:
             base *= P["return_factor"]
