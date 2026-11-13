@@ -21,18 +21,18 @@ jobs:
       NBA_DATA_DIR: ${{ github.workspace }}/store
       FANTASYPROS_API_KEY: ${{ secrets.FANTASYPROS_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           repository: F6PJoe/NBAProjections-data
           ssh-key: ${{ secrets.DATA_DEPLOY_KEY }}
           path: store
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
       - run: pip install -q -r requirements.txt && python -c "import pandas, numpy; print(pandas.__version__, numpy.__version__)"
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         with:
           path: |
             store/cache/sdv
@@ -60,7 +60,7 @@ jobs:
       - name: Save downloads
         if: always()
         continue-on-error: true
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: |
             store/cache/sdv
