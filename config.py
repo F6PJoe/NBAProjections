@@ -86,7 +86,10 @@ PARAMS = {
     "fill_cap_add": 8.0,
     "excess_starter_w": 0.25,     # when minutes must come back, starters give up less
     "high_min_start": 32.0,      # minutes above this are pulled back a little (blowouts, fouls)
-    "high_min_shrink": 0.0,
+    "high_min_shrink": 0.25,     # 2026-11-14: trim on (24+ min better all 3 seasons; overall +0.003..+0.009)
+    "ironman_rate": 0.7,         # ...except players with 36+ min in 70% of recent close games
+    "ironman_min": 36.0,
+    "ironman_games": 10,
     "pos_tau": 1.25,             # how strongly freed minutes stay at the same position
     "fill_power": 0.25,           # freed minutes split by (baseline minutes ^ power)
     "return_games": 5,           # missed this many team games in a row = returning

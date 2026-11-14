@@ -164,6 +164,22 @@ def fill():
     ]
 
 
+def ironman():
+    def v(label, **kw):
+        p = copy.deepcopy(PARAMS); p.update(kw); return (p, label)
+    t = dict(high_min_start=32, high_min_shrink=0.25)
+    return [
+        v("current"),
+        v("trim >32", **t),
+        v("trim, skip 34+ in 50% of games", ironman_rate=0.5, **t),
+        v("trim, skip 34+ in 70%", ironman_rate=0.7, **t),
+        v("trim, skip 36+ in 50%", ironman_rate=0.5, ironman_min=36.0, **t),
+        v("trim, skip 36+ in 70%", ironman_rate=0.7, ironman_min=36.0, **t),
+        v("trim .5, skip 34+ in 50%", ironman_rate=0.5, high_min_start=32, high_min_shrink=0.5),
+        v("trim >30 .25, skip 34+ in 50%", ironman_rate=0.5, high_min_start=30, high_min_shrink=0.25),
+    ]
+
+
 def fixes():
     def v(label, **kw):
         p = copy.deepcopy(PARAMS); p.update(kw); return (p, label)
@@ -180,8 +196,8 @@ def fixes():
 
 
 if __name__ == "__main__":
-    if any(f in sys.argv for f in ("--grid", "--combos", "--older", "--drops", "--fixes", "--rotation", "--retest", "--dnp", "--fill")):
-        todo = (fill() if "--fill" in sys.argv else dnp() if "--dnp" in sys.argv else retest() if "--retest" in sys.argv else rotation() if "--rotation" in sys.argv else fixes() if "--fixes" in sys.argv else combos() if "--combos" in sys.argv else older() if "--older" in sys.argv
+    if any(f in sys.argv for f in ("--grid", "--combos", "--older", "--drops", "--fixes", "--rotation", "--retest", "--dnp", "--fill", "--ironman")):
+        todo = (ironman() if "--ironman" in sys.argv else fill() if "--fill" in sys.argv else dnp() if "--dnp" in sys.argv else retest() if "--retest" in sys.argv else rotation() if "--rotation" in sys.argv else fixes() if "--fixes" in sys.argv else combos() if "--combos" in sys.argv else older() if "--older" in sys.argv
                 else drops() if "--drops" in sys.argv else variants())
         with ProcessPoolExecutor(max_workers=8, initializer=_init) as ex:
             rows = list(ex.map(score, todo))
@@ -192,7 +208,7 @@ if __name__ == "__main__":
             df[f"d{s}_24+"] = df[f"{s}_24+"] - base[f"{s}_24+"]
         pd.set_option("display.width", 250)
         print(df.round(3).to_string())
-        name = ("test_fill.csv" if "--fill" in sys.argv else "test_dnp_weight.csv" if "--dnp" in sys.argv else "test_retest_with_rotation.csv" if "--retest" in sys.argv else "test_rotation_size.csv" if "--rotation" in sys.argv else "test_min_fixes.csv" if "--fixes" in sys.argv else "test_min_calibration_combos.csv" if "--combos" in sys.argv else
+        name = ("test_ironman.csv" if "--ironman" in sys.argv else "test_fill.csv" if "--fill" in sys.argv else "test_dnp_weight.csv" if "--dnp" in sys.argv else "test_retest_with_rotation.csv" if "--retest" in sys.argv else "test_rotation_size.csv" if "--rotation" in sys.argv else "test_min_fixes.csv" if "--fixes" in sys.argv else "test_min_calibration_combos.csv" if "--combos" in sys.argv else
                 "test_older_seasons.csv" if "--older" in sys.argv else
                 "test_role_drop.csv" if "--drops" in sys.argv else "test_min_calibration_results.csv")
         df.round(4).to_csv(Path(__file__).with_name(name))

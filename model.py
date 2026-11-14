@@ -181,6 +181,16 @@ def rotation_cut(rows, team_hist, season, P):
             p["rot_cut"] = True
 
 
+def is_ironman(h, P):
+    """Plays heavy minutes almost every night (recent close games): exempt from the high-minute trim."""
+    rate = P.get("ironman_rate", 2.0)
+    if rate > 1 or h is None:
+        return False
+    ok = (h["status"] == "played") & ~h["left_hurt"] & (np.abs(h["margin"]) < P["blowout_margin"])
+    m = h["min"][ok][-P.get("ironman_games", 10):]
+    return len(m) >= 5 and float((m >= P.get("ironman_min", 34.0)).mean()) >= rate
+
+
 def games_missed_in_row(h, team_hist):
     """Team games since the player was last available (any team)."""
     if h is None or team_hist is None:
@@ -472,7 +482,7 @@ def project_team(hist, team, opp, is_home, day, season, roster, out_ids, pos_mea
         missed = games_missed_in_row(h, team_hist)
         if missed >= P["return_games"] and h is not None:
             base *= P["return_factor"]
-        if base > P["high_min_start"]:
+        if base > P["high_min_start"] and not is_ironman(h, P):
             base -= P["high_min_shrink"] * (base - P["high_min_start"])
         base = max(base, 0.0)
         fixed = r.get("fixed_min")
