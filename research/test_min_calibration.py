@@ -141,6 +141,12 @@ def retest():
     ]
 
 
+def dnp():
+    def v(label, **kw):
+        p = copy.deepcopy(PARAMS); p.update(kw); return (p, label)
+    return [v("current"), v("DNP-CD weight 0.5", dnp_cd_w=0.5), v("ignore DNP-CDs (weight 0)", dnp_cd_w=1e-9)]
+
+
 def fixes():
     def v(label, **kw):
         p = copy.deepcopy(PARAMS); p.update(kw); return (p, label)
@@ -157,8 +163,8 @@ def fixes():
 
 
 if __name__ == "__main__":
-    if any(f in sys.argv for f in ("--grid", "--combos", "--older", "--drops", "--fixes", "--rotation", "--retest")):
-        todo = (retest() if "--retest" in sys.argv else rotation() if "--rotation" in sys.argv else fixes() if "--fixes" in sys.argv else combos() if "--combos" in sys.argv else older() if "--older" in sys.argv
+    if any(f in sys.argv for f in ("--grid", "--combos", "--older", "--drops", "--fixes", "--rotation", "--retest", "--dnp")):
+        todo = (dnp() if "--dnp" in sys.argv else retest() if "--retest" in sys.argv else rotation() if "--rotation" in sys.argv else fixes() if "--fixes" in sys.argv else combos() if "--combos" in sys.argv else older() if "--older" in sys.argv
                 else drops() if "--drops" in sys.argv else variants())
         with ProcessPoolExecutor(max_workers=8, initializer=_init) as ex:
             rows = list(ex.map(score, todo))
@@ -169,7 +175,7 @@ if __name__ == "__main__":
             df[f"d{s}_24+"] = df[f"{s}_24+"] - base[f"{s}_24+"]
         pd.set_option("display.width", 250)
         print(df.round(3).to_string())
-        name = ("test_retest_with_rotation.csv" if "--retest" in sys.argv else "test_rotation_size.csv" if "--rotation" in sys.argv else "test_min_fixes.csv" if "--fixes" in sys.argv else "test_min_calibration_combos.csv" if "--combos" in sys.argv else
+        name = ("test_dnp_weight.csv" if "--dnp" in sys.argv else "test_retest_with_rotation.csv" if "--retest" in sys.argv else "test_rotation_size.csv" if "--rotation" in sys.argv else "test_min_fixes.csv" if "--fixes" in sys.argv else "test_min_calibration_combos.csv" if "--combos" in sys.argv else
                 "test_older_seasons.csv" if "--older" in sys.argv else
                 "test_role_drop.csv" if "--drops" in sys.argv else "test_min_calibration_results.csv")
         df.round(4).to_csv(Path(__file__).with_name(name))
