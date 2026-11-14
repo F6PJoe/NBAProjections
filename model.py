@@ -178,6 +178,7 @@ def rotation_cut(rows, team_hist, season, P):
     for i, p in enumerate(free):
         if i + nfixed >= size and not p.get("starter_tonight"):
             p["r"] *= f
+            p["rot_cut"] = True
 
 
 def games_missed_in_row(h, team_hist):
@@ -232,6 +233,7 @@ def allocate_minutes(players, vac, vac_pos, P):
                 if need <= 1e-6 or not room:
                     break
                 wts = np.array([(p["r"] + (1.0 if stage else 0.25)) ** P["fill_power"] * p["posw"]
+                                * (P.get("fill_cut_w", 1.0) if p.get("rot_cut") else 1.0)
                                 for p in room])
                 if wts.sum() <= 0:
                     break

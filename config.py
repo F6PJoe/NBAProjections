@@ -71,6 +71,7 @@ PARAMS = {
     "rot_cut_factor": 0.25,      # 2026-11-14: healthy non-starters ranked past the coach's usual rotation (+1) keep 25% (3 seasons -0.019..-0.083)
     "rot_slack": 1,
     "rot_games": 10,
+    "fill_cut_w": 0.0,           # 2026-11-14: freed minutes skip players already cut by the rotation rule (24+ min -0.006..-0.009, overall even)
     "jump_skips_role_blend": True,   # 2026-11-14: a minutes jump isn't undone by his old bench-role average (3 seasons -0.004..-0.011)
     "role_blend_k": 3.0,         # >0: lean on his own minutes in that role (pseudo-games); 0 = off
     "spread_min_k": 0.0,         # starter minutes cut per point of spread beyond spread_min_start
