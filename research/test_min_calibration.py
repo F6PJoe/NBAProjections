@@ -102,9 +102,24 @@ def older():
     ]
 
 
+def fixes():
+    def v(label, **kw):
+        p = copy.deepcopy(PARAMS); p.update(kw); return (p, label)
+    return [
+        v("current"),
+        v("jump skips role blend", jump_skips_role_blend=True),
+        v("DNP-CD weight 0.5", dnp_cd_w=0.5),
+        v("jump skip + DNP-CD 0.5", jump_skips_role_blend=True, dnp_cd_w=0.5),
+        v("new-team prior 0.5", new_team_prior_w=0.5),
+        v("new-team prior 0.25", new_team_prior_w=0.25),
+        v("jump skip + new-team 0.5", jump_skips_role_blend=True, new_team_prior_w=0.5),
+        v("all three", jump_skips_role_blend=True, dnp_cd_w=0.5, new_team_prior_w=0.5),
+    ]
+
+
 if __name__ == "__main__":
-    if any(f in sys.argv for f in ("--grid", "--combos", "--older", "--drops")):
-        todo = (combos() if "--combos" in sys.argv else older() if "--older" in sys.argv
+    if any(f in sys.argv for f in ("--grid", "--combos", "--older", "--drops", "--fixes")):
+        todo = (fixes() if "--fixes" in sys.argv else combos() if "--combos" in sys.argv else older() if "--older" in sys.argv
                 else drops() if "--drops" in sys.argv else variants())
         with ProcessPoolExecutor(max_workers=8, initializer=_init) as ex:
             rows = list(ex.map(score, todo))
@@ -115,7 +130,7 @@ if __name__ == "__main__":
             df[f"d{s}_24+"] = df[f"{s}_24+"] - base[f"{s}_24+"]
         pd.set_option("display.width", 250)
         print(df.round(3).to_string())
-        name = ("test_min_calibration_combos.csv" if "--combos" in sys.argv else
+        name = ("test_min_fixes.csv" if "--fixes" in sys.argv else "test_min_calibration_combos.csv" if "--combos" in sys.argv else
                 "test_older_seasons.csv" if "--older" in sys.argv else
                 "test_role_drop.csv" if "--drops" in sys.argv else "test_min_calibration_results.csv")
         df.round(4).to_csv(Path(__file__).with_name(name))

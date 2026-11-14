@@ -30,12 +30,33 @@ def pick_file(folder):
     return before[-1] if before else files[0]
 
 
+def lock_projections(folder):
+    """Each player's row from the last run saved before HIS game tipped (later games keep
+    updating after the first tip, e.g. starters confirmed 5 min before an 8 PM game)."""
+    files = sorted(folder.glob("projections_all_*.csv"))
+    if not files:
+        return None
+    rows = []
+    for f in files:
+        d = pd.read_csv(f)
+        d["_run"] = f.stem[-4:]
+        rows.append(d)
+    allp = pd.concat(rows, ignore_index=True)
+    tip = pd.to_datetime(allp["tip"], utc=True, errors="coerce").dt.tz_convert("America/New_York")
+    allp["_tip"] = tip.dt.strftime("%H%M")
+    pre = allp[allp["_tip"].isna() | (allp["_run"] < allp["_tip"])]
+    first = allp.sort_values("_run").drop_duplicates("player_id")      # fallback: earliest run
+    out = pre.sort_values("_run").drop_duplicates("player_id", keep="last")
+    out = pd.concat([out, first[~first["player_id"].isin(out["player_id"])]])
+    return out.drop(columns=["_tip"])
+
+
 def grade(date, pg):
     folder = OUTPUT / f"{date:%Y-%m-%d}"
     f = pick_file(folder)
     if f is None:
         return None
-    proj = pd.read_csv(f)
+    proj = lock_projections(folder)
     act = pg[pg["game_date"] == pd.Timestamp(date)]
     if act.empty:
         return None
@@ -45,7 +66,7 @@ def grade(date, pg):
     m = m[m["a_status"].isin(["played", "dnp_cd"]) & (m["Status"].fillna("") != "OUT")]
     e_dk = m["fp_DK"] - m["a_DK"]
     big = m["proj_min"] >= 20
-    row = {"date": f"{date:%Y-%m-%d}", "file": f.name, "players": len(m),
+    row = {"date": f"{date:%Y-%m-%d}", "file": f"per-player lock (first tip {f.stem[-4:]})", "players": len(m),
            "DK_MAE": e_dk.abs().mean(), "FD_MAE": (m["fp_FD"] - m["a_FD"]).abs().mean(),
            "DK_MAE_proj20plus": e_dk[big].abs().mean(), "min_MAE": (m["proj_min"] - m["a_min"]).abs().mean(),
            "DK_bias": e_dk.mean(),

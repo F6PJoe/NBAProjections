@@ -68,6 +68,7 @@ PARAMS = {
     "starter_delta_down": 4.0,   # starter coming off the bench: already unbiased (-0.1 min); bigger cuts tested worse
     "b2b_starter_min": 1.0,      # 2026-11-10: night 2 of a back-to-back, starters -1 min (to the bench); better on
                                  #   b2b starters + 24+ min players all 3 seasons. opp b2b / defense-by-position: no gain, off
+    "jump_skips_role_blend": True,   # 2026-11-14: a minutes jump isn't undone by his old bench-role average (3 seasons -0.004..-0.011)
     "role_blend_k": 3.0,         # >0: lean on his own minutes in that role (pseudo-games); 0 = off
     "spread_min_k": 0.0,         # starter minutes cut per point of spread beyond spread_min_start
     "spread_min_start": 6.0,

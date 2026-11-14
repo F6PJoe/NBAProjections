@@ -121,6 +121,11 @@ def minutes_baseline(h, team, season, P):
         if prior is None:
             return None, 0.0, 0, {}
         st = h["starter"][last][-20:].mean() if last.any() else 0.0
+        nw = P.get("new_team_prior_w", 1.0)
+        if nw < 1.0 and last.any() and not (h["team"][last][-20:] == team).any():
+            # all his recent minutes came for another team: lean toward a new-player default
+            prior = nw * prior + (1 - nw) * P["no_history_min"]
+            st *= nw
         return prior, float(st), 0, {}
     k = np.arange(len(idx))
     w = 0.5 ** (k / P["min_half_life"])
@@ -133,10 +138,12 @@ def minutes_baseline(h, team, season, P):
         kp = P["min_prior_games"]
         base = float(((w * m).sum() + kp * prior) / (w.sum() + kp))
     jk, jw = int(P.get("role_jump_k", 2)), P.get("role_jump_w", 0.0)
+    jumped = False
     if jw > 0 and len(idx) >= jk + 2:          # clear recent jump in minutes = role change (off by default)
         recent = float(m[:jk].mean())
         if recent - base >= P.get("role_jump_min", 6.0):
             base += jw * (recent - base)
+            jumped = True
     dw = P.get("role_drop_w", 0.0)
     if dw > 0 and len(idx) >= jk + 2:          # clear recent drop (e.g. out of the rotation) (off by default)
         recent = float(m[:jk].mean())
@@ -148,6 +155,7 @@ def minutes_baseline(h, team, season, P):
     for flag in (True, False):
         sel = st == flag
         role[flag] = (float((w[sel] * m[sel]).sum() / w[sel].sum()), int(sel.sum())) if sel.any() else (None, 0)
+    role["jumped"] = jumped
     return base, start_rate, len(idx), role
 
 
@@ -430,7 +438,8 @@ def project_team(hist, team, opp, is_home, day, season, roster, out_ids, pos_mea
             delta = P.get("starter_delta_up" if st else "starter_delta_down", P["starter_delta"])
             shifted = base + delta * ((1.0 if st else 0.0) - start_rate)
             mean_r, n_r = role.get(bool(st), (None, 0))
-            if P["role_blend_k"] > 0 and n_r > 0:
+            skip = role.get("jumped") and P.get("jump_skips_role_blend", False)
+            if P["role_blend_k"] > 0 and n_r > 0 and not skip:
                 wr = n_r / (n_r + P["role_blend_k"])
                 base = wr * mean_r + (1 - wr) * shifted
             else:
