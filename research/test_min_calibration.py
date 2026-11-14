@@ -102,6 +102,30 @@ def older():
     ]
 
 
+def rotation():
+    def v(label, **kw):
+        p = copy.deepcopy(PARAMS); p.update(kw); return (p, label)
+    return [
+        v("current"),
+        v("cut below rotation x0.5", rot_cut_factor=0.5),
+        v("cut below rotation x0.25", rot_cut_factor=0.25),
+        v("cut below rotation+1 x0.5", rot_cut_factor=0.5, rot_slack=1),
+        v("cut below rotation+1 x0.25", rot_cut_factor=0.25, rot_slack=1),
+        v("cut below rotation-1 x0.5", rot_cut_factor=0.5, rot_slack=-1),
+        v("cut x0.5, last 5 games", rot_cut_factor=0.5, rot_games=5),
+        v("cut x0.75", rot_cut_factor=0.75),
+    ] if "--round2" not in sys.argv else [
+        v("current"),
+        v("+1 x0.25", rot_cut_factor=0.25, rot_slack=1),
+        v("+1 x0.1", rot_cut_factor=0.1, rot_slack=1),
+        v("+2 x0.25", rot_cut_factor=0.25, rot_slack=2),
+        v("+2 x0.1", rot_cut_factor=0.1, rot_slack=2),
+        v("+1 x0.25 max33", rot_cut_factor=0.25, rot_slack=1, max_minutes=33.0),
+        v("+1 x0.25 trim>32 .25", rot_cut_factor=0.25, rot_slack=1, high_min_start=32, high_min_shrink=0.25),
+        v("+1 x0.25 last5", rot_cut_factor=0.25, rot_slack=1, rot_games=5),
+    ]
+
+
 def fixes():
     def v(label, **kw):
         p = copy.deepcopy(PARAMS); p.update(kw); return (p, label)
@@ -118,8 +142,8 @@ def fixes():
 
 
 if __name__ == "__main__":
-    if any(f in sys.argv for f in ("--grid", "--combos", "--older", "--drops", "--fixes")):
-        todo = (fixes() if "--fixes" in sys.argv else combos() if "--combos" in sys.argv else older() if "--older" in sys.argv
+    if any(f in sys.argv for f in ("--grid", "--combos", "--older", "--drops", "--fixes", "--rotation")):
+        todo = (rotation() if "--rotation" in sys.argv else fixes() if "--fixes" in sys.argv else combos() if "--combos" in sys.argv else older() if "--older" in sys.argv
                 else drops() if "--drops" in sys.argv else variants())
         with ProcessPoolExecutor(max_workers=8, initializer=_init) as ex:
             rows = list(ex.map(score, todo))
@@ -130,7 +154,7 @@ if __name__ == "__main__":
             df[f"d{s}_24+"] = df[f"{s}_24+"] - base[f"{s}_24+"]
         pd.set_option("display.width", 250)
         print(df.round(3).to_string())
-        name = ("test_min_fixes.csv" if "--fixes" in sys.argv else "test_min_calibration_combos.csv" if "--combos" in sys.argv else
+        name = ("test_rotation_size.csv" if "--rotation" in sys.argv else "test_min_fixes.csv" if "--fixes" in sys.argv else "test_min_calibration_combos.csv" if "--combos" in sys.argv else
                 "test_older_seasons.csv" if "--older" in sys.argv else
                 "test_role_drop.csv" if "--drops" in sys.argv else "test_min_calibration_results.csv")
         df.round(4).to_csv(Path(__file__).with_name(name))

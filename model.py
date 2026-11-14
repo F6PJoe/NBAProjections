@@ -51,6 +51,8 @@ class History:
             }
         self.min_by_game = {(g, p): m for g, p, m in
                             zip(pg["game_id"].values, pg["player_id"].values, pg["min"].values)}
+        # rotation size: players with 10+ minutes in each team game
+        rot = pg[pg["min"] >= 10].groupby(["game_id", "team"]).size()
         self.teams = {}
         tg = tg.sort_values(["team", "game_date"])
         tdays = ((tg["game_date"].values.astype("datetime64[D]") - DAY0).astype(int))
@@ -64,6 +66,7 @@ class History:
                 "opp_pts": d["opp_pts"].values.astype(float),
                 "total": d["game_total"].values.astype(float),
                 "x": d[STATS].values.astype(float),
+                "rot": np.array([rot.get((g, team), np.nan) for g in d["game_id"].values], dtype=float),
             }
         # league per-game team averages by season, for early-season shrinkage
         self.league_team_avg = tg.groupby("season")[STATS + ["team_pts", "game_total"]].mean()
@@ -157,6 +160,24 @@ def minutes_baseline(h, team, season, P):
         role[flag] = (float((w[sel] * m[sel]).sum() / w[sel].sum()), int(sel.sum())) if sel.any() else (None, 0)
     role["jumped"] = jumped
     return base, start_rate, len(idx), role
+
+
+def rotation_cut(rows, team_hist, season, P):
+    """The coach's usual rotation size (players getting 10+ min, recent games). Healthy players
+    ranked below it tonight usually DNP or mop up: shrink them (off by default)."""
+    f = P.get("rot_cut_factor", 1.0)
+    if f >= 1.0 or team_hist is None or "rot" not in team_hist:
+        return
+    sel = (team_hist["season"] == season) & ~np.isnan(team_hist["rot"])
+    r = team_hist["rot"][sel][-P.get("rot_games", 10):]
+    if len(r) < P.get("rot_min_games", 3):
+        return
+    size = int(round(float(np.mean(r)))) + int(P.get("rot_slack", 0))
+    free = sorted((p for p in rows if p["fixed"] is None), key=lambda p: -p["r"])
+    nfixed = sum(1 for p in rows if p["fixed"] is not None)
+    for i, p in enumerate(free):
+        if i + nfixed >= size and not p.get("starter_tonight"):
+            p["r"] *= f
 
 
 def games_missed_in_row(h, team_hist):
@@ -461,6 +482,7 @@ def project_team(hist, team, opp, is_home, day, season, roster, out_ids, pos_mea
                      "fixed": fixed, "missed_in_row": missed, "h": h,
                      "note": r.get("status_note", "")})
 
+    rotation_cut(rows, team_hist, season, P)
     vac = vacated_minutes(hist, team_hist, out_ids, P)
     vac_pos = {}
     for j in vac:
