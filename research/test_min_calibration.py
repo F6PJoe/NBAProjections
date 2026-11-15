@@ -33,6 +33,9 @@ def score(args):
     hi = r["proj_min"] > 33
     out["bias10-20"] = (r.loc[lo, "proj_min"] - r.loc[lo, "a_min"]).mean()
     out["bias33+"] = (r.loc[hi, "proj_min"] - r.loc[hi, "a_min"]).mean()
+    top = r["fp_DK"] >= 45
+    out["bias_proj45+"] = e[top].mean()
+    out["MAE_proj45+"] = e[top].abs().mean()
     out["starters_MAE"] = e[st].abs().mean()
     out["bench_MAE"] = e[~st].abs().mean()
     return out
@@ -195,6 +198,21 @@ def stars():
     ]
 
 
+def stars2():
+    def v(label, **kw):
+        p = copy.deepcopy(PARAMS); p.update(kw); return (p, label)
+    return [
+        v("current"),
+        v("protect top on cuts 0.5", cut_protect=0.5),
+        v("protect top on cuts 1.0", cut_protect=1.0),
+        v("protect 1.0 + concentrate boosts 1.0", cut_protect=1.0, usage_concentration=1.0),
+        v("protect top on cuts 2.0", cut_protect=2.0),
+        v("protect 1.0 + less pull to pos avg", cut_protect=1.0, rate_prior_scale=0.1),
+        v("team norm pts 0.5", team_norm_beta={**PARAMS["team_norm_beta"], "pts": 0.5}),
+        v("protect 1.0 + norm pts 0.7", cut_protect=1.0, team_norm_beta={**PARAMS["team_norm_beta"], "pts": 0.7}),
+    ]
+
+
 def fixes():
     def v(label, **kw):
         p = copy.deepcopy(PARAMS); p.update(kw); return (p, label)
@@ -211,8 +229,8 @@ def fixes():
 
 
 if __name__ == "__main__":
-    if any(f in sys.argv for f in ("--grid", "--combos", "--older", "--drops", "--fixes", "--rotation", "--retest", "--dnp", "--fill", "--ironman", "--stars")):
-        todo = (stars() if "--stars" in sys.argv else ironman() if "--ironman" in sys.argv else fill() if "--fill" in sys.argv else dnp() if "--dnp" in sys.argv else retest() if "--retest" in sys.argv else rotation() if "--rotation" in sys.argv else fixes() if "--fixes" in sys.argv else combos() if "--combos" in sys.argv else older() if "--older" in sys.argv
+    if any(f in sys.argv for f in ("--grid", "--combos", "--older", "--drops", "--fixes", "--rotation", "--retest", "--dnp", "--fill", "--ironman", "--stars", "--stars2")):
+        todo = (stars2() if "--stars2" in sys.argv else stars() if "--stars" in sys.argv else ironman() if "--ironman" in sys.argv else fill() if "--fill" in sys.argv else dnp() if "--dnp" in sys.argv else retest() if "--retest" in sys.argv else rotation() if "--rotation" in sys.argv else fixes() if "--fixes" in sys.argv else combos() if "--combos" in sys.argv else older() if "--older" in sys.argv
                 else drops() if "--drops" in sys.argv else variants())
         with ProcessPoolExecutor(max_workers=8, initializer=_init) as ex:
             rows = list(ex.map(score, todo))
@@ -223,7 +241,7 @@ if __name__ == "__main__":
             df[f"d{s}_24+"] = df[f"{s}_24+"] - base[f"{s}_24+"]
         pd.set_option("display.width", 250)
         print(df.round(3).to_string())
-        name = ("test_star_rates.csv" if "--stars" in sys.argv else "test_ironman.csv" if "--ironman" in sys.argv else "test_fill.csv" if "--fill" in sys.argv else "test_dnp_weight.csv" if "--dnp" in sys.argv else "test_retest_with_rotation.csv" if "--retest" in sys.argv else "test_rotation_size.csv" if "--rotation" in sys.argv else "test_min_fixes.csv" if "--fixes" in sys.argv else "test_min_calibration_combos.csv" if "--combos" in sys.argv else
+        name = ("test_star_cut_protect.csv" if "--stars2" in sys.argv else "test_star_rates.csv" if "--stars" in sys.argv else "test_ironman.csv" if "--ironman" in sys.argv else "test_fill.csv" if "--fill" in sys.argv else "test_dnp_weight.csv" if "--dnp" in sys.argv else "test_retest_with_rotation.csv" if "--retest" in sys.argv else "test_rotation_size.csv" if "--rotation" in sys.argv else "test_min_fixes.csv" if "--fixes" in sys.argv else "test_min_calibration_combos.csv" if "--combos" in sys.argv else
                 "test_older_seasons.csv" if "--older" in sys.argv else
                 "test_role_drop.csv" if "--drops" in sys.argv else "test_min_calibration_results.csv")
         df.round(4).to_csv(Path(__file__).with_name(name))

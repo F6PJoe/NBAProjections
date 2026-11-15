@@ -516,6 +516,8 @@ def project_team(hist, team, opp, is_home, day, season, roster, out_ids, pos_mea
     for p in rows:
         rates, _ = per_minute_rates(p["h"], season, p["pos"], pos_means, P)
         dvp = defense_factor(hist, opp, day, season, p["pos"], P)
+        p["raw_dk"] = sum(rates[s] * p["proj_min"] * SCORING["DK"][s] for s in STATS)
+        p["adj_pace"], p["adj_dvp"] = pace, dvp
         for s in STATS:
             p[s] = rates[s] * p["proj_min"] * pace * dvp * opp_b2b
 
@@ -544,6 +546,15 @@ def project_team(hist, team, opp, is_home, day, season, roster, out_ids, pos_mea
             k = proj_sum * (f - 1) / denom if denom > 0 else 0.0
             for p in rows:
                 p[s] *= 1 + k * wts[id(p)]
+        elif f < 1 and P.get("cut_protect", 0.0) > 0 and stat_ok:
+            # a cut (team projected above its total) comes less out of the top producers
+            rates = {id(p): p[s] / max(p["proj_min"], 1.0) for p in rows}
+            mean_rate = sum(rates.values()) / len(rates) or 1.0
+            wts = {k: (max(v, 0.05 * mean_rate) / mean_rate) ** -P["cut_protect"] for k, v in rates.items()}
+            denom = sum(p[s] * wts[id(p)] for p in rows)
+            k = proj_sum * (1 - f) / denom if denom > 0 else 0.0
+            for p in rows:
+                p[s] *= max(1 - k * wts[id(p)], 0.5)
         else:
             for p in rows:
                 p[s] *= f
@@ -551,7 +562,8 @@ def project_team(hist, team, opp, is_home, day, season, roster, out_ids, pos_mea
     out = []
     for p in rows:
         rec = {k: p[k] for k in ("player_id", "name", "pos", "proj_min", "r", "start_rate",
-                                 "games", "starter_tonight", "missed_in_row", "note")}
+                                 "games", "starter_tonight", "missed_in_row", "note",
+                                 "raw_dk", "adj_pace", "adj_dvp")}
         rec.update({s: p[s] for s in STATS})
         rec["p_dd"], rec["p_td"] = dd_td_probs(rec, P)
         for site in SCORING:

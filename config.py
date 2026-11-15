@@ -106,6 +106,7 @@ PARAMS = {
     "rate_prior_minutes": {"pts": 150, "fg3m": 250, "reb": 200, "ast": 200,
                            "stl": 500, "blk": 400, "tov": 300},
     # ---- game environment ----
+    "cut_protect": 1.0,          # 2026-11-15: when a team is cut to its Vegas total, top producers lose less (all 3 seasons -0.007..-0.010; proj 45+ bias -0.58 -> -0.18)
     "pace_alpha": 0.5,           # counting stats scale with (expected game total / usual) ^ alpha
     "team_norm_beta": {"pts": 1.0, "fg3m": 0.3, "reb": 0.6, "ast": 0.8,
                        "stl": 0.2, "blk": 0.2, "tov": 0.3},   # 2026-11-08: leans on Vegas team totals
