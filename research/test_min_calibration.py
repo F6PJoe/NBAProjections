@@ -213,6 +213,28 @@ def stars2():
     ]
 
 
+def fillin():
+    def v(label, **kw):
+        p = copy.deepcopy(PARAMS); p.update(kw); return (p, label)
+    return [
+        v("current"),
+        v("fill-in scale 30", fill_in_scale=30.0),
+        v("fill-in scale 60", fill_in_scale=60.0),
+        v("fill-in scale 100", fill_in_scale=100.0),
+        v("fill-in 30, floor 0.5", fill_in_scale=30.0, fill_in_floor=0.5),
+        v("fill-in 60, usual 20+", fill_in_scale=60.0, fill_in_min_usual=20.0),
+        v("fill-in 60, usual 10+", fill_in_scale=60.0, fill_in_min_usual=10.0),
+    ] if "--up" not in sys.argv else [
+        v("current"),
+        v("only games 0+ above usual, 30", fill_in_scale=30.0, fill_in_only_up=0.0),
+        v("only games 5+ above usual, 30", fill_in_scale=30.0, fill_in_only_up=5.0),
+        v("only games 5+ above usual, 60", fill_in_scale=60.0, fill_in_only_up=5.0),
+        v("only games 8+ above usual, 30", fill_in_scale=30.0, fill_in_only_up=8.0),
+        v("only games 5+ above, 30, floor 0", fill_in_scale=30.0, fill_in_only_up=5.0, fill_in_floor=0.0),
+        v("only games 3+ above usual, 30", fill_in_scale=30.0, fill_in_only_up=3.0),
+    ]
+
+
 def fixes():
     def v(label, **kw):
         p = copy.deepcopy(PARAMS); p.update(kw); return (p, label)
@@ -229,8 +251,8 @@ def fixes():
 
 
 if __name__ == "__main__":
-    if any(f in sys.argv for f in ("--grid", "--combos", "--older", "--drops", "--fixes", "--rotation", "--retest", "--dnp", "--fill", "--ironman", "--stars", "--stars2")):
-        todo = (stars2() if "--stars2" in sys.argv else stars() if "--stars" in sys.argv else ironman() if "--ironman" in sys.argv else fill() if "--fill" in sys.argv else dnp() if "--dnp" in sys.argv else retest() if "--retest" in sys.argv else rotation() if "--rotation" in sys.argv else fixes() if "--fixes" in sys.argv else combos() if "--combos" in sys.argv else older() if "--older" in sys.argv
+    if any(f in sys.argv for f in ("--grid", "--combos", "--older", "--drops", "--fixes", "--rotation", "--retest", "--dnp", "--fill", "--ironman", "--stars", "--stars2", "--fillin")):
+        todo = (fillin() if "--fillin" in sys.argv else stars2() if "--stars2" in sys.argv else stars() if "--stars" in sys.argv else ironman() if "--ironman" in sys.argv else fill() if "--fill" in sys.argv else dnp() if "--dnp" in sys.argv else retest() if "--retest" in sys.argv else rotation() if "--rotation" in sys.argv else fixes() if "--fixes" in sys.argv else combos() if "--combos" in sys.argv else older() if "--older" in sys.argv
                 else drops() if "--drops" in sys.argv else variants())
         with ProcessPoolExecutor(max_workers=8, initializer=_init) as ex:
             rows = list(ex.map(score, todo))
@@ -241,7 +263,7 @@ if __name__ == "__main__":
             df[f"d{s}_24+"] = df[f"{s}_24+"] - base[f"{s}_24+"]
         pd.set_option("display.width", 250)
         print(df.round(3).to_string())
-        name = ("test_star_cut_protect.csv" if "--stars2" in sys.argv else "test_star_rates.csv" if "--stars" in sys.argv else "test_ironman.csv" if "--ironman" in sys.argv else "test_fill.csv" if "--fill" in sys.argv else "test_dnp_weight.csv" if "--dnp" in sys.argv else "test_retest_with_rotation.csv" if "--retest" in sys.argv else "test_rotation_size.csv" if "--rotation" in sys.argv else "test_min_fixes.csv" if "--fixes" in sys.argv else "test_min_calibration_combos.csv" if "--combos" in sys.argv else
+        name = ("test_fill_in.csv" if "--fillin" in sys.argv else "test_star_cut_protect.csv" if "--stars2" in sys.argv else "test_star_rates.csv" if "--stars" in sys.argv else "test_ironman.csv" if "--ironman" in sys.argv else "test_fill.csv" if "--fill" in sys.argv else "test_dnp_weight.csv" if "--dnp" in sys.argv else "test_retest_with_rotation.csv" if "--retest" in sys.argv else "test_rotation_size.csv" if "--rotation" in sys.argv else "test_min_fixes.csv" if "--fixes" in sys.argv else "test_min_calibration_combos.csv" if "--combos" in sys.argv else
                 "test_older_seasons.csv" if "--older" in sys.argv else
                 "test_role_drop.csv" if "--drops" in sys.argv else "test_min_calibration_results.csv")
         df.round(4).to_csv(Path(__file__).with_name(name))

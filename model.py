@@ -104,8 +104,9 @@ class History:
 
 # ---------------------------------------------------------------- minutes ----
 
-def minutes_baseline(h, team, season, P):
-    """Return (baseline minutes, weighted start rate, games used)."""
+def minutes_baseline(h, team, season, P, game_w=None):
+    """Return (baseline minutes, weighted start rate, games used). game_w: optional
+    {game_id: weight} (e.g. games played while a teammate who is back tonight was out)."""
     if h is None:
         return None, 0.0, 0, {}
     avail = ((h["status"] == "played") | (h["status"] == "dnp_cd")) & ~h["left_hurt"]
@@ -135,6 +136,8 @@ def minutes_baseline(h, team, season, P):
     w = w * np.where(h["team"][idx] == team, 1.0, P["min_other_team_w"])
     w = w * np.where(np.abs(h["margin"][idx]) >= P["blowout_margin"], P["blowout_w"], 1.0)
     w = w * np.where(h["status"][idx] == "dnp_cd", P.get("dnp_cd_w", 1.0), 1.0)
+    if game_w:
+        w = w * np.array([game_w.get(g, 1.0) for g in h["game_id"][idx]])
     m = h["min"][idx]
     base = float((w * m).sum() / w.sum())
     if prior is not None:
@@ -160,6 +163,41 @@ def minutes_baseline(h, team, season, P):
         role[flag] = (float((w[sel] * m[sel]).sum() / w[sel].sum()), int(sel.sum())) if sel.any() else (None, 0)
     role["jumped"] = jumped
     return base, start_rate, len(idx), role
+
+
+def filled_in_weights(hist, team, day, season, roster, P):
+    """Games a player logged while a teammate who is ACTIVE tonight was out count less
+    (e.g. Kobe Brown's 20-38 min while Obi Toppin sat). Off unless P['fill_in_scale'] > 0.
+    Returns {player_id: {game_id: weight}}."""
+    scale = P.get("fill_in_scale", 0.0)
+    if scale <= 0:
+        return {}
+    ids = [r["player_id"] for r in roster]
+    usual, games, base_all = {}, {}, {}
+    for pid in ids:
+        h = hist.player_before(pid, day)
+        if h is None:
+            continue
+        b = minutes_baseline(h, team, season, P)[0]
+        base_all[pid] = b or 0.0
+        if b and b >= P.get("fill_in_min_usual", 15.0):
+            usual[pid] = b
+        cur = (h["season"] == season) & (h["team"] == team)
+        games[pid] = h["game_id"][cur][-P["min_window"]:]
+    out = {}
+    floor = P.get("fill_in_floor", 0.2)
+    for pid in ids:
+        gw = {}
+        for g in games.get(pid, []):
+            absent = sum(u for j, u in usual.items() if j != pid and hist.min_by_game.get((g, j), 0.0) <= 0)
+            if absent > 0:
+                up = P.get("fill_in_only_up")
+                if up is not None and hist.min_by_game.get((g, pid), 0.0) < base_all.get(pid, 0.0) + up:
+                    continue
+                gw[g] = max(floor, 1.0 - absent / scale)
+        if gw:
+            out[pid] = gw
+    return out
 
 
 def rotation_cut(rows, team_hist, season, P):
@@ -459,10 +497,11 @@ def project_team(hist, team, opp, is_home, day, season, roster, out_ids, pos_mea
     fixed_min (None or number), cap_min (None or number), status_note}.
     Only players expected to be ACTIVE belong in roster; out_ids are the ones who are not."""
     team_hist = hist.team_before(team, day)
+    game_w = filled_in_weights(hist, team, day, season, roster, P)
     rows = []
     for r in roster:
         h = hist.player_before(r["player_id"], day)
-        base, start_rate, n, role = minutes_baseline(h, team, season, P)
+        base, start_rate, n, role = minutes_baseline(h, team, season, P, game_w.get(r["player_id"]))
         st = r.get("starter")
         if base is None:
             base = P["no_history_start_min"] if st else P["no_history_min"]
