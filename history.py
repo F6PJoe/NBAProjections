@@ -226,6 +226,24 @@ def load_player_games(seasons):
     out = out.sort_values(["game_date", "game_id", "team", "starter"],
                           ascending=[True, True, True, False]).reset_index(drop=True)
     out["left_hurt"] = _left_hurt(out)
+    out = _regular_dnp_is_out(out)
+    return out
+
+
+def _regular_dnp_is_out(out):
+    """From 2026-27 the box scores label many injured/resting regulars "DNP - Coach's Decision"
+    (48% of regulars' absences vs 5% before). A player averaging REG_DNP_MIN+ over his last
+    played games who 'DNPs' was almost surely out: count it as out, not a 0-minute game."""
+    from config import PARAMS
+    import os
+    thr = float(os.environ.get("REG_DNP_MIN") or PARAMS.get("reg_dnp_min", 0.0))
+    if not thr:
+        return out
+    m = out["min"].where(out["status"] == "played")
+    prior = m.groupby(out["player_id"]).transform(lambda s: s.shift().rolling(10, min_periods=3).mean())
+    prior = prior.groupby(out["player_id"]).ffill()
+    flip = (out["status"] == "dnp_cd") & (prior >= thr)
+    out.loc[flip, "status"] = "out"
     return out
 
 
