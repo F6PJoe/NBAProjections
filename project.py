@@ -235,6 +235,11 @@ def main(date, params=PARAMS, quiet=False):
         say(f"news (test only): {news.pull()} new items")
     except Exception as e:
         say(f"news (test only): skipped - {e}")
+    try:                                                    # Bluesky beat writers: saved for research only (TEST)
+        import bluesky
+        say(f"bluesky (test only): {bluesky.pull()} new posts")
+    except Exception as e:
+        say(f"bluesky (test only): skipped - {e}")
     allp.to_csv(folder / f"projections_all_{stamp:%H%M}.csv", index=False)
 
     unmatched_sites = {}
