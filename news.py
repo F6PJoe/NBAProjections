@@ -59,6 +59,7 @@ def pull():
     for month, g in df.groupby(df["created"].dt.strftime("%Y-%m")):
         f = FOLDER / f"fp_news_{month}.csv"
         old = pd.read_csv(f) if f.exists() else pd.DataFrame(columns=COLS)
+        old["created"] = pd.to_datetime(old["created"])        # CSV reads dates back as text
         add = g[~g["id"].isin(old["id"])]
         if len(add):
             both = add if old.empty else pd.concat([old, add])
