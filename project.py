@@ -33,6 +33,28 @@ ET = ZoneInfo("America/New_York")
 OUT_STATUSES = {"Out", "Doubtful"}
 
 
+
+def blend_props(allp, date, w):
+    """Move each player's pts/reb/ast/3s w of the way toward his prop-implied average (only where a
+    prop exists and he's not out) and rescore every site. Model-only numbers kept as model_*.
+    3 seasons can't be backtested (no old props); 8 live nights: 50% DK MAE 7.84 -> 7.76."""
+    import props
+    if not w:
+        return allp
+    allp, _ = props.attach(allp, date)
+    if "prop_pts" not in allp:
+        return allp
+    live = (allp["proj_min"] > 0) & (allp["Status"] != "OUT")
+    for c in ("fp_DK", "fp_FD", "fp_Yahoo", "pts", "reb", "ast", "fg3m"):
+        allp[f"model_{c}"] = allp[c]
+    for site in ("DK", "FD", "Yahoo"):
+        allp.loc[live, f"fp_{site}"] = props.blend_dk(allp[live], w, site=site, ours="model_")
+    for s in ("pts", "reb", "ast", "fg3m"):
+        if f"prop_{s}" in allp:
+            d = (allp[f"prop_{s}"] - allp[s]).where(live).fillna(0)
+            allp[s] = allp[s] + w * d
+    return allp
+
 def load_overrides():
     f = DATA / "overrides.csv"
     if not f.exists():
@@ -224,12 +246,15 @@ def main(date, params=PARAMS, quiet=False):
             "missed_in_row", "tip"]
     allp = allp.reindex(columns=keep).sort_values("fp_DK", ascending=False)
     allp = benchmark.attach(allp, matcher, date, season, tips=games["tip"])   # comparison only
-    try:                                                    # prop lines: saved for grading only (TEST)
+    try:                                                    # prop lines: blended into pts/reb/ast/3s (props_blend)
         import props
         pr = props.pull(date, tips=games["tip"])            # pulls only when due (free plan quota)
-        say(f"props (test only): {pr['sgo_player'].nunique() if len(pr) else 0} players")
-    except Exception as e:                                  # never let the test break a run
-        say(f"props (test only): skipped - {e}")
+        allp = blend_props(allp, date, PARAMS.get("props_blend", 0.0))
+        n = int(allp["prop_pts"].notna().sum()) if "prop_pts" in allp else 0
+        say(f"props: {pr['sgo_player'].nunique() if len(pr) else 0} players pulled now; "
+            f"{n} projections moved {PARAMS.get('props_blend', 0.0):.0%} toward their props")
+    except Exception as e:                                  # never let props break a run
+        say(f"props: skipped - {e}")
     try:                                                    # FantasyPros news: saved for research only (TEST)
         import news
         say(f"news (test only): {news.pull()} new items")

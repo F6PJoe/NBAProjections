@@ -74,6 +74,7 @@ PARAMS = {
     "rot_slack": 1,
     "rot_games": 10,
     "fill_cut_w": 0.0,           # 2026-11-14: freed minutes skip players already cut by the rotation rule (24+ min -0.006..-0.009, overall even)
+    "props_blend": 0.5,          # 2026-11-19: pts/reb/ast/3s moved 50% toward prop-implied averages (8 nights: DK MAE 7.84 -> 7.76; Joe cleared SGO terms)
     "jump_skips_role_blend": True,   # 2026-11-14: a minutes jump isn't undone by his old bench-role average (3 seasons -0.004..-0.011)
     "role_blend_k": 3.0,         # >0: lean on his own minutes in that role (pseudo-games); 0 = off
     "spread_min_k": 0.0,         # starter minutes cut per point of spread beyond spread_min_start
