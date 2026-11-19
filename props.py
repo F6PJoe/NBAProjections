@@ -159,8 +159,9 @@ def _due(folder, date, now, tips):
         break
     if tight or now.hour < FIRST_PULL_HOUR:
         return False, None
-    if groups and now >= groups[0][0] - pd.Timedelta(minutes=max(near)):
-        return False, None                      # near-tip pulls take over
+    if groups and now >= groups[-1][0] - pd.Timedelta(minutes=max(near)):
+        return False, None                      # last group's near-tip pulls take over
+    # (weekend/holiday day games: noon/4 PM still pull every game not yet tipped for the later groups)
     marks = [pd.Timestamp(dt.datetime.combine(date, dt.time(h), ET)) for h in MIDDAY_HOURS]
     opened = [m for m in marks if m <= now]
     return (bool(opened) and (last is None or last < max(opened))), None
