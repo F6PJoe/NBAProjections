@@ -33,11 +33,11 @@ STAT_MAP = {"points": "pts", "rebounds": "reb", "assists": "ast", "threePointers
             "steals": "stl", "blocks": "blk", "turnovers": "tov"}
 SD_COEF = {**PARAMS["sd_coef"], "fg3m": 1.1, "tov": 1.0}
 FIRST_PULL_HOUR = 12  # books post most player props by midday; earlier pulls cost the same and return little
-REUSE_MIN = 180       # before the first tip: refresh every 3 hours (noon, 3 PM)
-NEAR_TIP_MIN = 75     # + one pull in the 75 minutes before each tip group ...
-GROUP_GAP_MIN = 120   # ... where games within 2 hours of the first tip of a group count as one group
-# normal 7 PM night: noon, 3 PM, ~5:55 PM (+ ~8:55 PM if there are 10 PM games) = ~3-4 pulls,
-# ~10 games each -> ~1,000 objects a month (free plan: 2,500)
+MIDDAY_HOURS = (12, 16)       # all of tonight's games at noon and 4 PM (gives early runs a blend)
+NEAR_TIP_MIN = (75, 40, 15)   # + pulls 75, 40 and 15 minutes before each tip group, THAT group's games only
+GROUP_GAP_MIN = 120           # games within 2 hours of a group's first tip count as one group
+MONTH_SOFT_CAP = 2000         # free plan = 2,500 objects/month: past 2,000, only the 40-minute pull runs
+# typical 10-game night: 10 + 10 + 3 x ~10 = ~50 objects; 15-game night ~75 -> ~1,500-2,000 a month
 
 
 def _american_to_prob(o):
@@ -55,7 +55,7 @@ def implied_mean(line, p_over, c):
         return np.nan
 
 
-def fetch(date):
+def fetch(date, until=None):
     key = secret("SPORTSGAMEODDS_API_KEY")
     if not key:
         raise SystemExit("SPORTSGAMEODDS_API_KEY missing from .env")
@@ -63,7 +63,8 @@ def fetch(date):
     params = {"leagueID": "NBA", "oddsAvailable": "true", "limit": 50,
               # games already under way are skipped: their lines are live in-game lines (and cost objects)
               "startsAfter": max(start, dt.datetime.now(ET)).astimezone(dt.timezone.utc).isoformat(),
-              "startsBefore": (start + dt.timedelta(days=1)).astimezone(dt.timezone.utc).isoformat()}
+              "startsBefore": min(start + dt.timedelta(days=1), until or start + dt.timedelta(days=1))
+                              .astimezone(dt.timezone.utc).isoformat()}
     events, cursor = [], None
     for _ in range(5):
         if cursor:
@@ -114,23 +115,55 @@ def tidy(events):
     return pd.DataFrame(rows)
 
 
+def month_objects(date):
+    """Objects (games returned) used so far this month, counted from the saved pulls."""
+    n = 0
+    for f in LIVE.glob(f"{date:%Y-%m}-*/props_[0-9]*.csv"):
+        try:
+            n += pd.read_csv(f, usecols=["event"])["event"].nunique()
+        except Exception:
+            pass
+    return n
+
+
+def _groups(tips):
+    """[(first tip, last tip)] per tip group, ET."""
+    out = []
+    for t in sorted(pd.to_datetime(pd.Series(list(tips)).dropna(), utc=True).dt.tz_convert(ET)):
+        if out and (t - out[-1][0]).total_seconds() <= GROUP_GAP_MIN * 60:
+            out[-1][1] = t
+        else:
+            out.append([t, t])
+    return out
+
+
 def _due(folder, date, now, tips):
+    """(due?, pull only games starting before this time or None for all of tonight's)."""
     if date != now.date():
-        return False
-    import live
+        return False, None
     files = sorted(folder.glob("props_[0-9]*.csv"))
     last = None
     if files:
         hhmm = files[-1].stem[-4:]
         last = pd.Timestamp(dt.datetime.combine(date, dt.time(int(hhmm[:2]), int(hhmm[2:])), ET))
     now = pd.Timestamp(now)
-    if tips is None or not len(tips):
-        return now.hour >= FIRST_PULL_HOUR and (last is None or (now - last).total_seconds() >= REUSE_MIN * 60)
-    first = live.tip_groups(tips, GROUP_GAP_MIN)[0]
-    if (now.hour >= FIRST_PULL_HOUR and now < first
-            and (last is None or (now - last).total_seconds() >= REUSE_MIN * 60)):
-        return True                    # midday refreshes (an early tip still gets its near-tip pull below)
-    return live.pull_due_before_tip(tips, now, last, NEAR_TIP_MIN, GROUP_GAP_MIN)
+    tight = month_objects(date) >= MONTH_SOFT_CAP
+    near = (40,) if tight else NEAR_TIP_MIN
+    groups = _groups(tips) if tips is not None and len(tips) else []
+    for first, lastt in groups:                 # next group not yet tipped
+        if first <= now:
+            continue
+        opened = [first - pd.Timedelta(minutes=m) for m in near if first - pd.Timedelta(minutes=m) <= now]
+        if opened and (last is None or last < max(opened)):
+            return True, (lastt + pd.Timedelta(minutes=1)).to_pydatetime()
+        break
+    if tight or now.hour < FIRST_PULL_HOUR:
+        return False, None
+    if groups and now >= groups[0][0] - pd.Timedelta(minutes=max(near)):
+        return False, None                      # near-tip pulls take over
+    marks = [pd.Timestamp(dt.datetime.combine(date, dt.time(h), ET)) for h in MIDDAY_HOURS]
+    opened = [m for m in marks if m <= now]
+    return (bool(opened) and (last is None or last < max(opened))), None
 
 
 def pull(date=None, force=False, tips=None):
@@ -139,9 +172,10 @@ def pull(date=None, force=False, tips=None):
     date = date or now.date()
     folder = LIVE / f"{date:%Y-%m-%d}"
     folder.mkdir(parents=True, exist_ok=True)
-    if not force and not _due(folder, date, now, tips):
+    due, until = (True, None) if force else _due(folder, date, now, tips)
+    if not due:
         return saved(date)[0]
-    events = fetch(date)
+    events = fetch(date, until)
     stamp = f"{now:%H%M}"
     with gzip.open(folder / f"props_raw_{stamp}.json.gz", "wt") as f:
         json.dump(events, f)
