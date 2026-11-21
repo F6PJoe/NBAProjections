@@ -235,6 +235,21 @@ def fillin():
     ]
 
 
+def rotcut():
+    def v(label, **kw):
+        p = copy.deepcopy(PARAMS); p.update(kw); return (p, label)
+    return [
+        v("current"),
+        v("exempt if 12+ last game", rot_recent_min=12.0),
+        v("exempt if 15+ last game", rot_recent_min=15.0),
+        v("exempt if 10+ last game", rot_recent_min=10.0),
+        v("soft cut: 1st past line 0.63", rot_soft_n=1),
+        v("soft cut: 2 past line 0.75/0.5", rot_soft_n=2),
+        v("soft 1 + exempt 12+", rot_soft_n=1, rot_recent_min=12.0),
+        v("fill-in only games he went up", fill_in_only_up=0.0),
+    ]
+
+
 def fixes():
     def v(label, **kw):
         p = copy.deepcopy(PARAMS); p.update(kw); return (p, label)
@@ -251,8 +266,8 @@ def fixes():
 
 
 if __name__ == "__main__":
-    if any(f in sys.argv for f in ("--grid", "--combos", "--older", "--drops", "--fixes", "--rotation", "--retest", "--dnp", "--fill", "--ironman", "--stars", "--stars2", "--fillin")):
-        todo = (fillin() if "--fillin" in sys.argv else stars2() if "--stars2" in sys.argv else stars() if "--stars" in sys.argv else ironman() if "--ironman" in sys.argv else fill() if "--fill" in sys.argv else dnp() if "--dnp" in sys.argv else retest() if "--retest" in sys.argv else rotation() if "--rotation" in sys.argv else fixes() if "--fixes" in sys.argv else combos() if "--combos" in sys.argv else older() if "--older" in sys.argv
+    if any(f in sys.argv for f in ("--grid", "--combos", "--older", "--drops", "--fixes", "--rotation", "--retest", "--dnp", "--fill", "--ironman", "--stars", "--stars2", "--fillin", "--rotcut")):
+        todo = (rotcut() if "--rotcut" in sys.argv else fillin() if "--fillin" in sys.argv else stars2() if "--stars2" in sys.argv else stars() if "--stars" in sys.argv else ironman() if "--ironman" in sys.argv else fill() if "--fill" in sys.argv else dnp() if "--dnp" in sys.argv else retest() if "--retest" in sys.argv else rotation() if "--rotation" in sys.argv else fixes() if "--fixes" in sys.argv else combos() if "--combos" in sys.argv else older() if "--older" in sys.argv
                 else drops() if "--drops" in sys.argv else variants())
         with ProcessPoolExecutor(max_workers=8, initializer=_init) as ex:
             rows = list(ex.map(score, todo))
@@ -263,7 +278,7 @@ if __name__ == "__main__":
             df[f"d{s}_24+"] = df[f"{s}_24+"] - base[f"{s}_24+"]
         pd.set_option("display.width", 250)
         print(df.round(3).to_string())
-        name = ("test_fill_in.csv" if "--fillin" in sys.argv else "test_star_cut_protect.csv" if "--stars2" in sys.argv else "test_star_rates.csv" if "--stars" in sys.argv else "test_ironman.csv" if "--ironman" in sys.argv else "test_fill.csv" if "--fill" in sys.argv else "test_dnp_weight.csv" if "--dnp" in sys.argv else "test_retest_with_rotation.csv" if "--retest" in sys.argv else "test_rotation_size.csv" if "--rotation" in sys.argv else "test_min_fixes.csv" if "--fixes" in sys.argv else "test_min_calibration_combos.csv" if "--combos" in sys.argv else
+        name = ("test_rot_cut_soft.csv" if "--rotcut" in sys.argv else "test_fill_in.csv" if "--fillin" in sys.argv else "test_star_cut_protect.csv" if "--stars2" in sys.argv else "test_star_rates.csv" if "--stars" in sys.argv else "test_ironman.csv" if "--ironman" in sys.argv else "test_fill.csv" if "--fill" in sys.argv else "test_dnp_weight.csv" if "--dnp" in sys.argv else "test_retest_with_rotation.csv" if "--retest" in sys.argv else "test_rotation_size.csv" if "--rotation" in sys.argv else "test_min_fixes.csv" if "--fixes" in sys.argv else "test_min_calibration_combos.csv" if "--combos" in sys.argv else
                 "test_older_seasons.csv" if "--older" in sys.argv else
                 "test_role_drop.csv" if "--drops" in sys.argv else "test_min_calibration_results.csv")
         df.round(4).to_csv(Path(__file__).with_name(name))

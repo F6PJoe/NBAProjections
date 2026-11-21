@@ -213,10 +213,19 @@ def rotation_cut(rows, team_hist, season, P):
     size = int(round(float(np.mean(r)))) + int(P.get("rot_slack", 0))
     free = sorted((p for p in rows if p["fixed"] is None), key=lambda p: -p["r"])
     nfixed = sum(1 for p in rows if p["fixed"] is not None)
+    recent = P.get("rot_recent_min", 0.0)        # >0: exempt if he played this many minutes in his last game
+    soft = int(P.get("rot_soft_n", 0))            # >0: first `soft` players past the line get a partial cut
+    k = 0
     for i, p in enumerate(free):
         if i + nfixed >= size and not p.get("starter_tonight"):
-            p["r"] *= f
-            p["rot_cut"] = True
+            h = p.get("h")
+            if recent and h is not None and len(h["min"]):
+                if h["status"][-1] == "played" and h["team"][-1] == p.get("team", h["team"][-1])                         and h["min"][-1] >= recent:
+                    continue
+            ff = f if k >= soft else 1 - (1 - f) * (k + 1) / (soft + 1)
+            k += 1
+            p["r"] *= ff
+            p["rot_cut"] = ff <= f + 1e-9 or P.get("rot_soft_fill_cut", True)
 
 
 def is_ironman(h, P):
