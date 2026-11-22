@@ -200,6 +200,41 @@ def filled_in_weights(hist, team, day, season, roster, P):
     return out
 
 
+def _missed_game(h, g):
+    """True if this player was with the team for game g but did not play (out / rested)."""
+    if h is None:
+        return False
+    idx = np.where(h["game_id"] == g)[0]
+    return len(idx) > 0 and h["status"][idx[-1]] != "played"
+
+
+def _recent_role(p, rows, P):
+    """Did he earn real minutes lately with the regulars ahead of him available?
+    Games where a regular who is active tonight sat out are skipped when rot_exempt_clean is on
+    (those minutes were probably fill-in). Needs rot_recent_need of the last rot_recent_k clean
+    games at rot_recent_min+."""
+    h = p.get("h")
+    if h is None or not len(h["min"]):
+        return False
+    need_min = P["rot_recent_min"]
+    k = int(P.get("rot_recent_k", 1))
+    need = int(P.get("rot_recent_need", 1))
+    clean = P.get("rot_exempt_clean", False)
+    regs = [q for q in rows if q is not p and (q["starter_tonight"] or q["r"] >= P.get("rot_reg_min", 20.0))]
+    seen = hits = 0
+    for i in range(len(h["min"]) - 1, -1, -1):
+        if seen >= k:
+            break
+        if h["status"][i] == "out":
+            continue                                   # he was hurt: not evidence either way
+        g = h["game_id"][i]
+        if clean and any(_missed_game(q.get("h"), g) for q in regs):
+            continue                                   # a regular sat: fill-in minutes
+        seen += 1
+        hits += h["status"][i] == "played" and h["min"][i] >= need_min
+    return hits >= need
+
+
 def rotation_cut(rows, team_hist, season, P):
     """The coach's usual rotation size (players getting 10+ min, recent games). Healthy players
     ranked below it tonight usually DNP or mop up: shrink them (off by default)."""
@@ -213,19 +248,45 @@ def rotation_cut(rows, team_hist, season, P):
     size = int(round(float(np.mean(r)))) + int(P.get("rot_slack", 0))
     free = sorted((p for p in rows if p["fixed"] is None), key=lambda p: -p["r"])
     nfixed = sum(1 for p in rows if p["fixed"] is not None)
-    recent = P.get("rot_recent_min", 0.0)        # >0: exempt if he played this many minutes in his last game
+    recent = P.get("rot_recent_min", 0.0)        # >0: exempt players who earned real minutes lately
     soft = int(P.get("rot_soft_n", 0))            # >0: first `soft` players past the line get a partial cut
     k = 0
     for i, p in enumerate(free):
         if i + nfixed >= size and not p.get("starter_tonight"):
-            h = p.get("h")
-            if recent and h is not None and len(h["min"]):
-                if h["status"][-1] == "played" and h["team"][-1] == p.get("team", h["team"][-1])                         and h["min"][-1] >= recent:
-                    continue
+            if recent and _recent_role(p, rows, P):
+                p["rot_exempt"] = True
+                p["r_cut"] = p["r"] * f
+                continue
             ff = f if k >= soft else 1 - (1 - f) * (k + 1) / (soft + 1)
             k += 1
             p["r"] *= ff
             p["rot_cut"] = ff <= f + 1e-9 or P.get("rot_soft_fill_cut", True)
+
+
+def protect_regulars(rows, vac, vac_pos, P):
+    """Minutes kept by rotation-exempt bench players come out of the other bench players,
+    not the regulars: regulars keep what they'd get if the exempt players had been cut."""
+    ex = [p for p in rows if p.get("rot_exempt")]
+    if not ex:
+        return
+    ghost = [dict(p) for p in rows]
+    for g in ghost:
+        if g.get("rot_exempt"):
+            g["r"], g["rot_cut"] = g["r_cut"], True
+    allocate_minutes(ghost, vac, vac_pos, P)
+    reg_min = P.get("rot_reg_min", 20.0)
+    owed = 0.0
+    for p, g in zip(rows, ghost):
+        if p["fixed"] is None and not p.get("rot_exempt") and (p["starter_tonight"] or g["proj_min"] >= reg_min):
+            owed += g["proj_min"] - p["proj_min"]
+            p["proj_min"] = g["proj_min"]
+            p["is_reg"] = True
+    pool = [p for p in rows if p["fixed"] is None and not p.get("is_reg") and p["proj_min"] > 0]
+    tot = sum(p["proj_min"] for p in pool)
+    if tot > 0 and owed:
+        f = max(0.0, 1 - owed / tot)
+        for p in pool:
+            p["proj_min"] *= f
 
 
 def is_ironman(h, P):
@@ -550,6 +611,8 @@ def project_team(hist, team, opp, is_home, day, season, roster, out_ids, pos_mea
         if vac_pos[j] is None:
             vac_pos[j] = hist_pos(hist, j)
     allocate_minutes(rows, vac, vac_pos, P)
+    if P.get("rot_exempt_protect", False):
+        protect_regulars(rows, vac, vac_pos, P)
 
     env = expected_environment(hist, team, opp, is_home, day, season, P, vegas)
     spread_adjust(rows, env, P)
