@@ -54,7 +54,7 @@ def games(date):
     _save(date, "espn_scoreboard", d)
     g = parse_scoreboard(d)
     _remember_lines(date, g)
-    return g
+    return _fill_lines(date, g)       # ESPN drops the line once a game tips: keep the last pre-game one
 
 
 def _remember_lines(date, g):
@@ -96,9 +96,14 @@ def saved_games(date):
     if not files:
         return pd.DataFrame()
     g = parse_scoreboard(json.loads(files[-1].read_text(encoding="utf-8")))
+    return _fill_lines(date, g)
+
+
+def _fill_lines(date, g):
+    """Fill games with no total/spread (already tipped) from lines.csv."""
     f = _folder(date) / "lines.csv"
     if f.exists() and len(g):
-        ln = pd.read_csv(f, dtype={"espn_id": str}).set_index("espn_id")
+        ln = pd.read_csv(f, dtype={"espn_id": str}).drop_duplicates("espn_id", keep="last").set_index("espn_id")
         ids = g["espn_id"].astype(str)
         miss = g["total"].isna() & ids.isin(ln.index)
         g.loc[miss, "total"] = ids[miss].map(ln["total"])

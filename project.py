@@ -44,7 +44,7 @@ def blend_props(allp, date, w):
     allp, _ = props.attach(allp, date)
     if "prop_pts" not in allp:
         return allp
-    live = (allp["proj_min"] > 0) & (allp["Status"] != "OUT")
+    live = (allp["proj_min"] > 0) & (allp["Status"] != "OUT") & (allp["fp_DK"] > 0)   # never blend onto a zeroed row
     for c in ("fp_DK", "fp_FD", "fp_Yahoo", "pts", "reb", "ast", "fg3m"):
         allp[f"model_{c}"] = allp[c]
     for site in ("DK", "FD", "Yahoo"):
@@ -189,7 +189,7 @@ def main(date, params=PARAMS, quiet=False):
     for g in games.itertuples():
         for team, opp, is_home in ((g.home, g.away, True), (g.away, g.home, False)):
             vegas = None
-            if g.total and g.spread_home is not None:
+            if pd.notna(g.total) and g.total and pd.notna(g.spread_home):   # NaN is truthy: no line -> model's own total
                 vegas = {"total": g.total, "spread": g.spread_home if is_home else -g.spread_home}
             members = rosters[rosters["team"] == team]
             roster, out_ids, info = [], set(), {}
