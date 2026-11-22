@@ -200,12 +200,101 @@ def filled_in_weights(hist, team, day, season, roster, P):
     return out
 
 
-def _missed_game(h, g):
-    """True if this player was with the team for game g but did not play (out / rested)."""
+def _missed_game(h, g, day=None, team=None, P=PARAMS, on_team_now=False):
+    """True if this player was with the team for game g but did not play (out / rested).
+    With P['missing_is_out'], no record at all counts as missed when he has games for the
+    team both before and after that day (box scores often leave inactive players out)."""
     if h is None:
         return False
     idx = np.where(h["game_id"] == g)[0]
-    return len(idx) > 0 and h["status"][idx[-1]] != "played"
+    if len(idx):
+        return h["status"][idx[-1]] != "played"
+    if not P.get("missing_is_out", False) or day is None:
+        return False
+    with_team = h["team"] == team if team is not None else np.ones(len(h["day"]), bool)
+    after = on_team_now or (with_team & (h["day"] > day)).any()      # on tonight's roster counts as after
+    return bool((with_team & (h["day"] < day)).any() and after)
+
+
+_DEPTH = {}
+_ESPN_TEAM = {"NO": "NOP", "GS": "GSW", "NY": "NYK", "SA": "SAS", "UTAH": "UTA", "WSH": "WAS"}
+
+
+def _norm(n):
+    import re
+    n = re.sub(r"[^a-z ]", "", str(n).lower().replace("-", " "))
+    return " ".join(w for w in n.split() if w not in ("jr", "sr", "ii", "iii", "iv"))
+
+
+def depth_chart(team, date):
+    """ESPN depth chart for the team from the latest snapshot BEFORE date:
+    {slot: [normalized names in depth order]}."""
+    if "df" not in _DEPTH:
+        from config import SDV
+        f = SDV / "depthcharts_2027.parquet"
+        d = pd.read_parquet(f) if f.exists() else pd.DataFrame(columns=["as_of_date", "team_abbreviation"])
+        d["team"] = d["team_abbreviation"].replace(_ESPN_TEAM)
+        d["as_of_date"] = pd.to_datetime(d["as_of_date"])
+        _DEPTH["df"] = d
+    key = (team, date)
+    if key not in _DEPTH:
+        d = _DEPTH["df"]
+        t = d[(d["team"] == team) & (d["as_of_date"] < pd.Timestamp(date))]
+        if t.empty:
+            _DEPTH[key] = {}
+        else:
+            t = t[t["as_of_date"] == t["as_of_date"].max()].sort_values("depth_rank")
+            _DEPTH[key] = {slot: [_norm(n) for n in g["athlete_display_name"]]
+                           for slot, g in t.groupby("position_abbreviation")}
+    return _DEPTH[key]
+
+
+def replacement_exempt(rows, hist, team_hist, team, day, out_ids, vac, P):
+    """Bench players who should stay in the rotation because someone is out tonight.
+    'Last time he sat' (sat_recent_k > 0): played rot_recent_min+ in the team's latest games
+    without that player. 'Next man up' (depth_next_up): next active non-starter after him at
+    his ESPN depth-chart position."""
+    ex = set()
+    big = [j for j, v in vac.items() if v >= P.get("repl_vac_min", 10.0)]
+    if not big:
+        return ex
+    by_id = {p["player_id"]: p for p in rows}
+    k = int(P.get("sat_recent_k", 0))
+    if k and team_hist is not None and hist is not None:
+        for j in big:
+            hj = hist.player_before(j, day)
+            gids, days = team_hist["game_id"][-15:][::-1], team_hist["day"][-15:][::-1]
+            sat = [g for g, dd in zip(gids, days)
+                   if hist.min_by_game.get((g, j), 0.0) <= 0 and _missed_game(hj, g, dd, team, P, True)][:k]
+            if not sat:
+                continue
+            for p in rows:
+                m = [hist.min_by_game.get((g, p["player_id"]), 0.0) for g in sat]
+                if np.mean(m) >= P.get("sat_min", 12.0):
+                    ex.add(p["player_id"])
+                    if not p.get("starter_tonight"):
+                        p.setdefault("r_pre", p["r"])
+                        p["r"] = max(p["r"], P.get("sat_floor_w", 0.0) * float(np.mean(m)))
+    if P.get("depth_next_up", False) and hist is not None:
+        chart = depth_chart(team, pd.Timestamp(DAY0 + np.timedelta64(int(day), "D")))
+        if chart:
+            names = {_norm(p["name"]): p for p in rows if p.get("name")}
+            for j in big:
+                hj = hist.player_before(j, day)
+                nj = _norm((hj or {}).get("name", ""))
+                spots = [(lst.index(nj), slot) for slot, lst in chart.items() if nj in lst]
+                if not spots:
+                    continue
+                rank, slot = min(spots)
+                for n in chart[slot][rank + 1:]:
+                    p = names.get(n)
+                    if p is None or p.get("starter_tonight"):
+                        continue
+                    ex.add(p["player_id"])
+                    p.setdefault("r_pre", p["r"])
+                    p["r"] = max(p["r"], P.get("next_up_share", 0.0) * vac[j])
+                    break
+    return ex
 
 
 def _recent_role(p, rows, P):
@@ -228,14 +317,14 @@ def _recent_role(p, rows, P):
         if h["status"][i] == "out":
             continue                                   # he was hurt: not evidence either way
         g = h["game_id"][i]
-        if clean and any(_missed_game(q.get("h"), g) for q in regs):
+        if clean and any(_missed_game(q.get("h"), g, h["day"][i], h["team"][i], P, True) for q in regs):
             continue                                   # a regular sat: fill-in minutes
         seen += 1
         hits += h["status"][i] == "played" and h["min"][i] >= need_min
     return hits >= need
 
 
-def rotation_cut(rows, team_hist, season, P):
+def rotation_cut(rows, team_hist, season, P, repl=()):
     """The coach's usual rotation size (players getting 10+ min, recent games). Healthy players
     ranked below it tonight usually DNP or mop up: shrink them (off by default)."""
     f = P.get("rot_cut_factor", 1.0)
@@ -253,9 +342,9 @@ def rotation_cut(rows, team_hist, season, P):
     k = 0
     for i, p in enumerate(free):
         if i + nfixed >= size and not p.get("starter_tonight"):
-            if recent and _recent_role(p, rows, P):
+            if p["player_id"] in repl or (recent and _recent_role(p, rows, P)):
                 p["rot_exempt"] = True
-                p["r_cut"] = p["r"] * f
+                p["r_cut"] = p.get("r_pre", p["r"]) * f
                 continue
             ff = f if k >= soft else 1 - (1 - f) * (k + 1) / (soft + 1)
             k += 1
@@ -266,18 +355,20 @@ def rotation_cut(rows, team_hist, season, P):
 def protect_regulars(rows, vac, vac_pos, P):
     """Minutes kept by rotation-exempt bench players come out of the other bench players,
     not the regulars: regulars keep what they'd get if the exempt players had been cut."""
-    ex = [p for p in rows if p.get("rot_exempt")]
+    ex = [p for p in rows if p.get("rot_exempt") or "r_pre" in p]
     if not ex:
         return
     ghost = [dict(p) for p in rows]
     for g in ghost:
         if g.get("rot_exempt"):
             g["r"], g["rot_cut"] = g["r_cut"], True
+        elif "r_pre" in g:
+            g["r"] = g["r_pre"]
     allocate_minutes(ghost, vac, vac_pos, P)
     reg_min = P.get("rot_reg_min", 20.0)
     owed = 0.0
     for p, g in zip(rows, ghost):
-        if p["fixed"] is None and not p.get("rot_exempt") and (p["starter_tonight"] or g["proj_min"] >= reg_min):
+        if p["fixed"] is None and not p.get("rot_exempt") and "r_pre" not in p and (p["starter_tonight"] or g["proj_min"] >= reg_min):
             owed += g["proj_min"] - p["proj_min"]
             p["proj_min"] = g["proj_min"]
             p["is_reg"] = True
@@ -603,8 +694,9 @@ def project_team(hist, team, opp, is_home, day, season, roster, out_ids, pos_mea
                      "fixed": fixed, "missed_in_row": missed, "h": h,
                      "note": r.get("status_note", "")})
 
-    rotation_cut(rows, team_hist, season, P)
     vac = vacated_minutes(hist, team_hist, out_ids, P)
+    repl = replacement_exempt(rows, hist, team_hist, team, day, out_ids, vac, P)
+    rotation_cut(rows, team_hist, season, P, repl)
     vac_pos = {}
     for j in vac:
         vac_pos[j] = next((r["pos"] for r in roster if r["player_id"] == j), None)

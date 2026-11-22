@@ -14,6 +14,7 @@ DATASETS = [
     ("nba_stats_player_boxscores", "player_boxscores_{yr}"),
     ("nba_stats_schedules", "nba_schedule_{yr}"),
     ("nba_stats_rosters", "rosters_{yr}"),
+    ("espn_nba_depthcharts", "depthcharts_{yr}"),   # daily ESPN depth charts (2027 on)
 ]
 
 TTL_CURRENT = 3 * 3600          # current season: refresh every 3 hours
@@ -44,6 +45,8 @@ def refresh(seasons=None, force=False):
     seasons = seasons or [CURRENT_SEASON - 1, CURRENT_SEASON]
     for yr in seasons:
         for tag, stem in DATASETS:
+            if tag == "espn_nba_depthcharts" and yr < 2027:
+                continue                 # ESPN depth charts start with the 2026-27 season
             fetch(tag, stem, yr, force)
 
 

@@ -238,18 +238,20 @@ def fillin():
 def rotcut():
     def v(label, **kw):
         p = copy.deepcopy(PARAMS); p.update(kw); return (p, label)
-    last = dict(rot_recent_min=12.0)
-    two3 = dict(rot_recent_min=12.0, rot_recent_k=3, rot_recent_need=2)
-    cl, pr = dict(rot_exempt_clean=True), dict(rot_exempt_protect=True)
+    pr = dict(rot_exempt_protect=True)
+    c12 = dict(rot_recent_min=12.0, rot_exempt_clean=True, **pr)
+    mi = dict(missing_is_out=True)
+    dep = lambda w: dict(depth_next_up=True, next_up_share=w, **pr)
+    sat = lambda w: dict(sat_recent_k=2, sat_floor_w=w, **mi, **pr)
     return [
         v("current"),
-        v("12+ last game", **last),
-        v("12+ last game + bench pays", **last, **pr),
-        v("12+ last clean game", **last, **cl),
-        v("12+ last clean game + bench pays", **last, **cl, **pr),
-        v("12+ in 2 of last 3", **two3),
-        v("12+ in 2 of last 3 clean", **two3, **cl),
-        v("12+ in 2 of last 3 clean + bench pays", **two3, **cl, **pr),
+        v("12 clean + bench pays", **c12),
+        v("next man up 35%, regulars protected", **dep(0.35)),
+        v("next man up 50%, regulars protected", **dep(0.5)),
+        v("sat floor 0.5, regulars protected", **sat(0.5)),
+        v("12 clean + next up 35%", **{**dep(0.35), **c12}),
+        v("12 clean + next up 50%", **{**dep(0.5), **c12}),
+        v("12 clean + sat no floor", **{**sat(0.0), **c12}),
     ]
 
 
@@ -281,7 +283,7 @@ if __name__ == "__main__":
             df[f"d{s}_24+"] = df[f"{s}_24+"] - base[f"{s}_24+"]
         pd.set_option("display.width", 250)
         print(df.round(3).to_string())
-        name = ("test_rot_exempt.csv" if "--rotcut" in sys.argv else "test_fill_in.csv" if "--fillin" in sys.argv else "test_star_cut_protect.csv" if "--stars2" in sys.argv else "test_star_rates.csv" if "--stars" in sys.argv else "test_ironman.csv" if "--ironman" in sys.argv else "test_fill.csv" if "--fill" in sys.argv else "test_dnp_weight.csv" if "--dnp" in sys.argv else "test_retest_with_rotation.csv" if "--retest" in sys.argv else "test_rotation_size.csv" if "--rotation" in sys.argv else "test_min_fixes.csv" if "--fixes" in sys.argv else "test_min_calibration_combos.csv" if "--combos" in sys.argv else
+        name = ("test_replacements2.csv" if "--rotcut" in sys.argv else "test_fill_in.csv" if "--fillin" in sys.argv else "test_star_cut_protect.csv" if "--stars2" in sys.argv else "test_star_rates.csv" if "--stars" in sys.argv else "test_ironman.csv" if "--ironman" in sys.argv else "test_fill.csv" if "--fill" in sys.argv else "test_dnp_weight.csv" if "--dnp" in sys.argv else "test_retest_with_rotation.csv" if "--retest" in sys.argv else "test_rotation_size.csv" if "--rotation" in sys.argv else "test_min_fixes.csv" if "--fixes" in sys.argv else "test_min_calibration_combos.csv" if "--combos" in sys.argv else
                 "test_older_seasons.csv" if "--older" in sys.argv else
                 "test_role_drop.csv" if "--drops" in sys.argv else "test_min_calibration_results.csv")
         df.round(4).to_csv(Path(__file__).with_name(name))
