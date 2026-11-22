@@ -307,7 +307,9 @@ def _regular_dnp_is_out(out):
         return out
     m = out["min"].where(out["status"] == "played")
     # average of his last 10 PLAYED games (rows for games he missed don't shrink the window)
-    if int(os.environ.get("OFFICIAL_OUT") or PARAMS.get("official_out", 0)) >= 2 or os.environ.get("REG_PLAYED_ONLY") == "1":
+    played_only = os.environ.get("REG_PLAYED_ONLY")
+    played_only = PARAMS.get("reg_dnp_played_only", False) if played_only is None else played_only == "1"
+    if played_only or int(os.environ.get("OFFICIAL_OUT") or PARAMS.get("official_out", 0)) >= 2:
         prior = m.groupby(out["player_id"]).transform(
             lambda s: s.dropna().rolling(10, min_periods=3).mean().reindex(s.index).ffill())
     else:

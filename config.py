@@ -69,6 +69,10 @@ PARAMS = {
     "b2b_starter_min": 1.0,      # 2026-11-10: night 2 of a back-to-back, starters -1 min (to the bench); better on
                                  #   b2b starters + 24+ min players all 3 seasons. opp b2b / defense-by-position: no gain, off
     "reg_dnp_min": 15.0,         # 2026-11-17: a "DNP - Coach's Decision" by a player averaging 15+ min = out (2026-27 boxes label injured regulars CD; 24+ 2027 -0.147)
+    # 2026-11-22 (Joe OK): official NBA injury report corrects box-score labels in history; 3 seasons
+    # overall +0.001/+0.006/-0.003, 24+ -0.004/-0.009/-0.010 (research/test_official_out.py)
+    "official_out": 1,           # "Coach's Decision" DNP while officially Out (injury, rest, suspension) = out, not benched
+    "reg_dnp_played_only": True, # regular-DNP rule averages his last 10 PLAYED games (missed games don't shrink the window)
     "fill_in_scale": 100.0,      # 2026-11-16: games logged while a teammate active tonight (usual 15+ min) was out count less (2025/26 -0.024/-0.023, 2027 even)
     "rot_cut_factor": 0.25,      # 2026-11-14: healthy non-starters ranked past the coach's usual rotation (+1) keep 25% (3 seasons -0.019..-0.083)
     "rot_slack": 1,
