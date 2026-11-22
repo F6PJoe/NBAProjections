@@ -74,6 +74,12 @@ PARAMS = {
     "rot_slack": 1,
     "rot_games": 10,
     "fill_cut_w": 0.0,           # 2026-11-14: freed minutes skip players already cut by the rotation rule (24+ min -0.006..-0.009, overall even)
+    # 2026-11-22 (Joe OK): together 3 seasons -0.010/-0.011/-0.024, 24+ +0.005/+0.004/-0.002; Friday 11-20 fixes Jackson-Davis/Collins
+    "rot_recent_min": 12.0,      # bench guy past the cut keeps his minutes if he played 12+ in his last clean game...
+    "rot_exempt_clean": True,    # ...skipping games where a regular active tonight sat (fill-in minutes)
+    "rot_exempt_protect": True,  # minutes he keeps come out of the other bench players, not the regulars
+    "depth_next_up": True,       # player out (10+ min vacated): next active non-starter at his ESPN depth-chart spot stays in the rotation...
+    "next_up_share": 0.35,       # ...with at least 35% of the out player's minutes
     "props_blend": 0.5,          # 2026-11-19: pts/reb/ast/3s moved 50% toward prop-implied averages (8 nights: DK MAE 7.84 -> 7.76; Joe cleared SGO terms)
     "jump_skips_role_blend": True,   # 2026-11-14: a minutes jump isn't undone by his old bench-role average (3 seasons -0.004..-0.011)
     "role_blend_k": 3.0,         # >0: lean on his own minutes in that role (pseudo-games); 0 = off
