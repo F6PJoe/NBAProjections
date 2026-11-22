@@ -225,8 +225,74 @@ def load_player_games(seasons):
     out = out.drop(columns=["home", "away", "home_pts", "away_pts", "season_type"])
     out = out.sort_values(["game_date", "game_id", "team", "starter"],
                           ascending=[True, True, True, False]).reset_index(drop=True)
+    out = _official_out(out, seasons, sched)
     out["left_hurt"] = _left_hurt(out)
     out = _regular_dnp_is_out(out)
+    return out
+
+
+def official_report(seasons):
+    """Each player's status on the LAST official NBA injury report before each game:
+    DataFrame game_id, player_id, team, off_status."""
+    fr = []
+    for yr in seasons:
+        f = SDV / f"injury_report_{yr}.parquet"
+        if f.exists():
+            fr.append(pd.read_parquet(f, columns=["game_id", "report_datetime", "person_id", "team_id",
+                                                  "current_status", "reason"]))
+    if not fr:
+        return pd.DataFrame(columns=["game_id", "player_id", "team", "off_status"])
+    r = pd.concat(fr, ignore_index=True).dropna(subset=["person_id", "current_status"])
+    r = r.sort_values("report_datetime").drop_duplicates(["game_id", "person_id"], keep="last")
+    ids = load_team_ids()
+    return pd.DataFrame({"game_id": r["game_id"].astype(str).values,
+                         "player_id": r["person_id"].astype(int).values,
+                         "team": r["team_id"].astype(int).map(ids).values,
+                         "off_status": r["current_status"].values,
+                         "off_reason": r["reason"].fillna("").values})
+
+
+def _official_out(out, seasons, sched):
+    """Box scores this season often call injured / suspended players 'DNP - Coach's Decision',
+    and often leave inactive players out entirely. The official injury report says who was Out:
+    relabel those DNPs as out (P['official_out'] >= 1) and add missing Out players as out rows
+    (P['official_out'] >= 2) so the model knows they were unavailable, not benched."""
+    from config import PARAMS
+    import os
+    lvl = int(os.environ.get("OFFICIAL_OUT") or PARAMS.get("official_out", 0))
+    if not lvl:
+        return out
+    rep = official_report(seasons)
+    rep = rep[rep["off_status"] == "Out"]
+    if not int(os.environ.get("OFFICIAL_OUT_GL") or PARAMS.get("official_out_gleague", 0)):
+        rep = rep[~rep["off_reason"].str.startswith("G League")]   # fringe guys sent down: not an injury absence
+    if rep.empty:
+        return out
+    key = set(zip(rep["game_id"], rep["player_id"]))
+    hit = np.fromiter(((g, p) in key for g, p in zip(out["game_id"], out["player_id"])), bool, len(out))
+    out.loc[hit & (out["status"] == "dnp_cd"), "status"] = "out"
+    if lvl >= 2:
+        have = set(zip(out["game_id"], out["player_id"]))
+        add = rep[[(g, p) not in have for g, p in zip(rep["game_id"], rep["player_id"])]]
+        add = add[add["game_id"].isin(set(out["game_id"])) & add["team"].notna()]
+        if len(add):
+            games = out.drop_duplicates(["game_id", "team"]).set_index(["game_id", "team"])
+            keep = [k for k in zip(add["game_id"], add["team"]) if k in games.index]
+            add = add[[k in games.index for k in zip(add["game_id"], add["team"])]]
+            base = games.loc[keep].reset_index()
+            names = out.drop_duplicates("player_id", keep="last").set_index("player_id")["name"]
+            base["player_id"] = add["player_id"].values
+            base["name"] = base["player_id"].map(names).fillna("")
+            base["starter"] = False
+            base["comment"] = "Official report: Out - " + add["off_reason"].values
+            base["status"] = "out"
+            for c in ["min"] + list(BOX_COLS.values()):
+                base[c] = 0.0
+            if "pos" in base:
+                base = base.drop(columns=["pos"])
+            out = pd.concat([out, base[out.columns]], ignore_index=True)
+            out = out.sort_values(["game_date", "game_id", "team", "starter"],
+                                  ascending=[True, True, True, False]).reset_index(drop=True)
     return out
 
 
@@ -240,8 +306,13 @@ def _regular_dnp_is_out(out):
     if not thr:
         return out
     m = out["min"].where(out["status"] == "played")
-    prior = m.groupby(out["player_id"]).transform(lambda s: s.shift().rolling(10, min_periods=3).mean())
-    prior = prior.groupby(out["player_id"]).ffill()
+    # average of his last 10 PLAYED games (rows for games he missed don't shrink the window)
+    if int(os.environ.get("OFFICIAL_OUT") or PARAMS.get("official_out", 0)) >= 2 or os.environ.get("REG_PLAYED_ONLY") == "1":
+        prior = m.groupby(out["player_id"]).transform(
+            lambda s: s.dropna().rolling(10, min_periods=3).mean().reindex(s.index).ffill())
+    else:
+        prior = m.groupby(out["player_id"]).transform(lambda s: s.shift().rolling(10, min_periods=3).mean())
+        prior = prior.groupby(out["player_id"]).ffill()
     flip = (out["status"] == "dnp_cd") & (prior >= thr)
     out.loc[flip, "status"] = "out"
     return out

@@ -14,7 +14,8 @@ DATASETS = [
     ("nba_stats_player_boxscores", "player_boxscores_{yr}"),
     ("nba_stats_schedules", "nba_schedule_{yr}"),
     ("nba_stats_rosters", "rosters_{yr}"),
-    ("espn_nba_depthcharts", "depthcharts_{yr}"),   # daily ESPN depth charts (2027 on)
+    ("espn_nba_depthcharts", "depthcharts_{yr}"),
+    ("nba_stats_injury_report", "injury_report_{yr}"),   # official NBA injury reports (every release)   # daily ESPN depth charts (2027 on)
 ]
 
 TTL_CURRENT = 3 * 3600          # current season: refresh every 3 hours
