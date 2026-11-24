@@ -290,6 +290,8 @@ def replacement_exempt(rows, hist, team_hist, team, day, out_ids, vac, P):
                     p = names.get(n)
                     if p is None or p.get("starter_tonight"):
                         continue
+                    if P.get("depth_next_deeper", False) and p["player_id"] in ex:
+                        continue                         # already promoted for another absence: go one deeper
                     ex.add(p["player_id"])
                     p.setdefault("r_pre", p["r"])
                     p["r"] = max(p["r"], P.get("next_up_share", 0.0) * vac[j])
@@ -324,6 +326,21 @@ def _recent_role(p, rows, P):
     return hits >= need
 
 
+def set_depth_ahead(rows, team, day):
+    """p['depth_ahead']: healthy players listed ahead of him at his best ESPN depth-chart spot
+    (None if he isn't on the chart)."""
+    chart = depth_chart(team, pd.Timestamp(DAY0 + np.timedelta64(int(day), "D")))
+    active = {_norm(p["name"]) for p in rows if p.get("name")}
+    for p in rows:
+        n = _norm(p.get("name") or "")
+        spots = [(lst.index(n), lst) for lst in chart.values() if n in lst]
+        if not spots:
+            p["depth_ahead"] = None
+            continue
+        i, lst = min(spots, key=lambda t: t[0])
+        p["depth_ahead"] = sum(1 for x in lst[:i] if x in active)
+
+
 def rotation_cut(rows, team_hist, season, P, repl=()):
     """The coach's usual rotation size (players getting 10+ min, recent games). Healthy players
     ranked below it tonight usually DNP or mop up: shrink them (off by default)."""
@@ -340,9 +357,18 @@ def rotation_cut(rows, team_hist, season, P, repl=()):
     recent = P.get("rot_recent_min", 0.0)        # >0: exempt players who earned real minutes lately
     soft = int(P.get("rot_soft_n", 0))            # >0: first `soft` players past the line get a partial cut
     k = 0
+    keep_max = P.get("depth_keep_max")           # past the line but <= this many healthy players ahead on ESPN: keep
+    cut_min = P.get("depth_cut_min")             # inside the line but >= this many healthy players ahead: cut
     for i, p in enumerate(free):
+        da = p.get("depth_ahead")
+        if (cut_min is not None and i + nfixed < size and not p.get("starter_tonight") and da is not None
+                and da >= cut_min and p["r"] <= P.get("depth_cut_max_r", 18.0) and p["player_id"] not in repl):
+            p["r"] *= f
+            p["rot_cut"] = True
+            continue
         if i + nfixed >= size and not p.get("starter_tonight"):
-            if p["player_id"] in repl or (recent and _recent_role(p, rows, P)):
+            if (p["player_id"] in repl or (recent and _recent_role(p, rows, P))
+                    or (keep_max is not None and da is not None and da <= keep_max)):
                 p["rot_exempt"] = True
                 p["r_cut"] = p.get("r_pre", p["r"]) * f
                 continue
@@ -681,7 +707,8 @@ def project_team(hist, team, opp, is_home, day, season, roster, out_ids, pos_mea
             base = max(base, P["starter_min_floor"])
         missed = games_missed_in_row(h, team_hist)
         if missed >= P["return_games"] and h is not None:
-            base *= P["return_factor"]
+            bench = not st and start_rate < 0.5
+            base *= P.get("return_factor_bench", P["return_factor"]) if bench else P["return_factor"]
         if base > P["high_min_start"] and not is_ironman(h, P):
             base -= P["high_min_shrink"] * (base - P["high_min_start"])
         base = max(base, 0.0)
@@ -696,6 +723,8 @@ def project_team(hist, team, opp, is_home, day, season, roster, out_ids, pos_mea
 
     vac = vacated_minutes(hist, team_hist, out_ids, P)
     repl = replacement_exempt(rows, hist, team_hist, team, day, out_ids, vac, P)
+    if P.get("depth_keep_max") is not None or P.get("depth_cut_min") is not None:
+        set_depth_ahead(rows, team, day)
     rotation_cut(rows, team_hist, season, P, repl)
     vac_pos = {}
     for j in vac:
